@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+.AppleDouble
+._*
+
+# Xcode: generated output and per-user settings
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager: generated output
+.build/
+.swiftpm/
+
+# Distribution and debug artifacts
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+
+# Local secrets and signing files
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.provisionprofile
+
+# Keep project files, shared schemes, asset catalogs,
+# and application Package.resolved files under version control.
