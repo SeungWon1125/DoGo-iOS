@@ -6,19 +6,67 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B10A00000000000000000009 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000002 /* ShareViewController.swift */; };
+		B10A00000000000000000010 /* ShareComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000003 /* ShareComposerView.swift */; };
+		B10A00000000000000000011 /* DuGo-iOS/Service/SharedLinkInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000006 /* DuGo-iOS/Service/SharedLinkInbox.swift */; };
+		B10A00000000000000000012 /* DuGo-iOS/Service/LinkPreviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */; };
+		B10A00000000000000000013 /* DuGo-iOS/Service/LinkPriceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */; };
+		B10A00000000000000000014 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000001 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B10A00000000000000000021 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E3EB0B28305D80860017CC71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B10A00000000000000000015;
+			remoteInfo = ShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B10A00000000000000000019 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B10A00000000000000000014 /* ShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		E3EB0B30305D80860017CC71 /* DoGo-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DoGo-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10A00000000000000000001 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10A00000000000000000002 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		B10A00000000000000000003 /* ShareComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareComposerView.swift; sourceTree = "<group>"; };
+		B10A00000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B10A00000000000000000005 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		B10A00000000000000000006 /* DuGo-iOS/Service/SharedLinkInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/SharedLinkInbox.swift"; sourceTree = "<group>"; };
+		B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/LinkPreviewService.swift"; sourceTree = "<group>"; };
+		B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/LinkPriceParser.swift"; sourceTree = "<group>"; };
+		E3EB0B30305D80860017CC71 /* DuGo-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DuGo-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		E3EB0B32305D80860017CC71 /* DoGo-iOS */ = {
+		E3EB0B32305D80860017CC71 /* DuGo-iOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "DoGo-iOS";
+			path = "DuGo-iOS";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B10A00000000000000000017 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E3EB0B2D305D80860017CC71 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -29,10 +77,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B10A00000000000000000022 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				B10A00000000000000000002 /* ShareViewController.swift */,
+				B10A00000000000000000003 /* ShareComposerView.swift */,
+				B10A00000000000000000004 /* Info.plist */,
+				B10A00000000000000000005 /* ShareExtension.entitlements */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
 		E3EB0B27305D80860017CC71 = {
 			isa = PBXGroup;
 			children = (
-				E3EB0B32305D80860017CC71 /* DoGo-iOS */,
+				E3EB0B32305D80860017CC71 /* DuGo-iOS */,
+				B10A00000000000000000022 /* ShareExtension */,
+				B10A00000000000000000006 /* DuGo-iOS/Service/SharedLinkInbox.swift */,
+				B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */,
+				B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */,
 				E3EB0B31305D80860017CC71 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +103,8 @@
 		E3EB0B31305D80860017CC71 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E3EB0B30305D80860017CC71 /* DoGo-iOS.app */,
+				E3EB0B30305D80860017CC71 /* DuGo-iOS.app */,
+				B10A00000000000000000001 /* ShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,26 +112,43 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E3EB0B2F305D80860017CC71 /* DoGo-iOS */ = {
+		B10A00000000000000000015 /* ShareExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E3EB0B3B305D80870017CC71 /* Build configuration list for PBXNativeTarget "DoGo-iOS" */;
+			buildConfigurationList = B10A00000000000000000025 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
 			buildPhases = (
-				E3EB0B2C305D80860017CC71 /* Sources */,
-				E3EB0B2D305D80860017CC71 /* Frameworks */,
-				E3EB0B2E305D80860017CC71 /* Resources */,
+				B10A00000000000000000016 /* Sources */,
+				B10A00000000000000000017 /* Frameworks */,
+				B10A00000000000000000018 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
+			name = ShareExtension;
+			productName = ShareExtension;
+			productReference = B10A00000000000000000001 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		E3EB0B2F305D80860017CC71 /* DuGo-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E3EB0B3B305D80870017CC71 /* Build configuration list for PBXNativeTarget "DuGo-iOS" */;
+			buildPhases = (
+				E3EB0B2C305D80860017CC71 /* Sources */,
+				E3EB0B2D305D80860017CC71 /* Frameworks */,
+				E3EB0B2E305D80860017CC71 /* Resources */,
+				B10A00000000000000000019 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B10A00000000000000000020 /* PBXTargetDependency */,
+			);
 			fileSystemSynchronizedGroups = (
-				E3EB0B32305D80860017CC71 /* DoGo-iOS */,
+				E3EB0B32305D80860017CC71 /* DuGo-iOS */,
 			);
-			name = "DoGo-iOS";
-			packageProductDependencies = (
-			);
-			productName = "DoGo-iOS";
-			productReference = E3EB0B30305D80860017CC71 /* DoGo-iOS.app */;
+			name = "DuGo-iOS";
+			productName = "DuGo-iOS";
+			productReference = E3EB0B30305D80860017CC71 /* DuGo-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -80,12 +161,15 @@
 				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					B10A00000000000000000015 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
 					E3EB0B2F305D80860017CC71 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
 				};
 			};
-			buildConfigurationList = E3EB0B2B305D80860017CC71 /* Build configuration list for PBXProject "DoGo-iOS" */;
+			buildConfigurationList = E3EB0B2B305D80860017CC71 /* Build configuration list for PBXProject "DuGo-iOS" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,12 +183,20 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E3EB0B2F305D80860017CC71 /* DoGo-iOS */,
+				E3EB0B2F305D80860017CC71 /* DuGo-iOS */,
+				B10A00000000000000000015 /* ShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		B10A00000000000000000018 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E3EB0B2E305D80860017CC71 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +207,18 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B10A00000000000000000016 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10A00000000000000000009 /* ShareViewController.swift in Sources */,
+				B10A00000000000000000010 /* ShareComposerView.swift in Sources */,
+				B10A00000000000000000011 /* DuGo-iOS/Service/SharedLinkInbox.swift in Sources */,
+				B10A00000000000000000012 /* DuGo-iOS/Service/LinkPreviewService.swift in Sources */,
+				B10A00000000000000000013 /* DuGo-iOS/Service/LinkPriceParser.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E3EB0B2C305D80860017CC71 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +228,67 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		B10A00000000000000000020 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B10A00000000000000000015 /* ShareExtension */;
+			targetProxy = B10A00000000000000000021 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		B10A00000000000000000023 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7KX4HGAQ77;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "won.DoGo-iOS.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B10A00000000000000000024 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7KX4HGAQ77;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "won.DoGo-iOS.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		E3EB0B39305D80870017CC71 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -251,11 +415,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "DuGo-iOS/DuGo-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7KX4HGAQ77;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIAppFonts = "Pretendard-Regular.otf Pretendard-Medium.otf Pretendard-SemiBold.otf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -283,11 +450,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "DuGo-iOS/DuGo-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7KX4HGAQ77;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_UIAppFonts = "Pretendard-Regular.otf Pretendard-Medium.otf Pretendard-SemiBold.otf";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -313,7 +483,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E3EB0B2B305D80860017CC71 /* Build configuration list for PBXProject "DoGo-iOS" */ = {
+		B10A00000000000000000025 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10A00000000000000000023 /* Debug */,
+				B10A00000000000000000024 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E3EB0B2B305D80860017CC71 /* Build configuration list for PBXProject "DuGo-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E3EB0B39305D80870017CC71 /* Debug */,
@@ -322,7 +501,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E3EB0B3B305D80870017CC71 /* Build configuration list for PBXNativeTarget "DoGo-iOS" */ = {
+		E3EB0B3B305D80870017CC71 /* Build configuration list for PBXNativeTarget "DuGo-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E3EB0B3C305D80870017CC71 /* Debug */,
