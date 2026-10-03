@@ -38,7 +38,7 @@ struct DuGo_iOSApp: App {
             )
             container = try ModelContainer(for: schema, configurations: configuration)
         } catch {
-            Logger(subsystem: "won.DoGo-iOS", category: "storage").error(
+            Logger(subsystem: "app.seungwon.dugo", category: "storage").error(
                 "Storage initialization failed: \(error.localizedDescription)"
             )
             container = nil
@@ -49,16 +49,20 @@ struct DuGo_iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SplashContainer {
-                if let container {
-                    ContentView(context: container.mainContext, reminders: reminders)
-                        .modelContainer(container)
-                } else {
-                    ContentUnavailableView(
-                        "보관함을 열지 못했어요",
-                        systemImage: "externaldrive.badge.exclamationmark",
-                        description: Text("앱을 다시 실행해주세요 문제가 계속되면 저장 공간을 확인해주세요")
-                    )
+            ForceUpdateGate {
+                SplashContainer {
+                    OnboardingContainer {
+                        if let container {
+                            ContentView(context: container.mainContext, reminders: reminders)
+                                .modelContainer(container)
+                        } else {
+                            ContentUnavailableView(
+                                "보관함을 열지 못했어요",
+                                systemImage: "externaldrive.badge.exclamationmark",
+                                description: Text("앱을 다시 실행해주세요 문제가 계속되면 저장 공간을 확인해주세요")
+                            )
+                        }
+                    }
                 }
             }
         }

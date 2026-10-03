@@ -8,7 +8,10 @@ import SwiftUI
 struct SplashContainer<Content: View>: View {
     // MARK: - Properties
 
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var isShowingSplash = true
+    @State private var isFadingSplash = false
+    @State private var isShowingContent = false
 
     private let content: Content
 
@@ -22,21 +25,31 @@ struct SplashContainer<Content: View>: View {
 
     var body: some View {
         ZStack {
-            content
+            DuGoTheme.background
+                .ignoresSafeArea()
+
+            if hasCompletedOnboarding || isShowingContent {
+                content
+            }
 
             if isShowingSplash {
                 SplashView()
                     .ignoresSafeArea()
-                    .transition(.opacity)
+                    .opacity(isFadingSplash ? 0 : 1)
                     .zIndex(1)
             }
         }
         .task {
             try? await Task.sleep(for: .seconds(1.6))
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
-                isShowingSplash = false
+            withAnimation(.easeOut(duration: 0.45)) {
+                isFadingSplash = true
             }
+
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            isShowingContent = true
+            isShowingSplash = false
         }
     }
 }

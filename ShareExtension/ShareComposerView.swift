@@ -4,6 +4,7 @@
 //
 
 import Combine
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -33,6 +34,10 @@ final class ShareComposerModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let previewService = LinkPreviewService()
+    private var sharedContentLink: String?
+    private var sharedContentTitle: String?
+    private var sharedContentPrice: Int?
+    private var sharedContentImageData: Data?
 
     // MARK: - Computed Properties
 
@@ -54,12 +59,27 @@ final class ShareComposerModel: ObservableObject {
     // MARK: - Methods
 
     func preparePreview() {
+        let usesSharedContent = link == sharedContentLink
         isLoadingPreview = false
         previewedLink = nil
         highlightedFields = []
-        imageData = nil
-        title = ""
-        price = ""
+        imageData = usesSharedContent ? sharedContentImageData : nil
+        title = usesSharedContent ? sharedContentTitle ?? "" : ""
+        price = usesSharedContent ? sharedContentPrice.map(String.init) ?? "" : ""
+        formatPrice()
+    }
+
+    func applySharedContent(
+        url: URL,
+        title: String?,
+        price: Int?,
+        imageData: Data?
+    ) {
+        sharedContentLink = url.absoluteString
+        sharedContentTitle = title
+        sharedContentPrice = price
+        sharedContentImageData = imageData
+        link = url.absoluteString
     }
 
     func loadPreview(animate: Bool) async {
@@ -70,7 +90,7 @@ final class ShareComposerModel: ObservableObject {
         do {
             let preview = try await previewService.fetch(from: requestedLink)
             guard !Task.isCancelled, link == requestedLink else { return }
-            if let image = preview.imageData {
+            if imageData == nil, let image = preview.imageData {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     imageData = image
                     highlightedFields.insert(.image)
@@ -95,6 +115,7 @@ final class ShareComposerModel: ObservableObject {
             if price.isEmpty, let amount = preview.price {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     price = String(amount)
+                    formatPrice()
                     highlightedFields.insert(.price)
                 }
             }
@@ -146,6 +167,24 @@ final class ShareComposerModel: ObservableObject {
         try SharedLinkInbox.enqueue(wish)
     }
 
+    func preparePriceForEditing() {
+        price = price.filter(\.isNumber)
+    }
+
+    func formatPrice() {
+        let digits = price.filter(\.isNumber)
+        guard !digits.isEmpty, let amount = Int(digits) else { return }
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.maximumFractionDigits = 0
+
+        if let formattedPrice = formatter.string(from: NSNumber(value: amount)) {
+            price = "\(formattedPrice)원"
+        }
+    }
+
     // MARK: - Private Types
 
     private enum ShareError: LocalizedError {
@@ -171,14 +210,19 @@ struct ShareComposerView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isLinkFocused: Bool
+    @FocusState private var isPriceFocused: Bool
     @State private var visibleErrorMessage: String?
     @State private var errorDismissTask: Task<Void, Never>?
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var isLoadingSelectedPhoto = false
+    @State private var photoSelectionMessage: String?
+    private let linkPreviewService = LinkPreviewService()
     private let reviewDayOptions = [1, 3, 5, 7, 10]
 
     // MARK: - Computed Properties
 
     private var categories: [String] {
-        let defaults = UserDefaults(suiteName: "group.won.DoGo-iOS")
+        let defaults = UserDefaults(suiteName: "group.app.seungwon.dugo")
         let saved = defaults?.stringArray(forKey: "wishCategories.v1")
         return saved?.isEmpty == false
             ? saved ?? ["미분류"]
@@ -245,6 +289,7 @@ struct ShareComposerView: View {
                                     TextField("가격 (원)", text: $model.price)
                                         .font(.system(size: 16))
                                         .keyboardType(.numberPad)
+                                        .focused($isPriceFocused)
                                         .frame(minHeight: 54)
                                         .background { autofillBackground(for: .price) }
 
@@ -347,6 +392,16 @@ struct ShareComposerView: View {
                     .fontWeight(.semibold)
                     .disabled(model.validURL == nil || model.isSaving)
                 }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("완료") {
+                        model.formatPrice()
+                        isPriceFocused = false
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                }
             }
             .overlay(alignment: .top) {
                 if let visibleErrorMessage {
@@ -367,17 +422,30 @@ struct ShareComposerView: View {
                     presentInvalidLinkErrorIfNeeded()
                 }
             }
+            .onChange(of: isPriceFocused) { wasFocused, isFocused in
+                if wasFocused && !isFocused {
+                    model.formatPrice()
+                } else if isFocused {
+                    model.preparePriceForEditing()
+                }
+            }
             .onChange(of: model.errorMessage, initial: true) { _, message in
                 guard let message, !message.isEmpty else { return }
                 presentErrorToast(message)
             }
             .onDisappear { errorDismissTask?.cancel() }
             .task(id: model.link) {
+                selectedPhoto = nil
+                photoSelectionMessage = nil
                 model.preparePreview()
                 guard model.validURL != nil else { return }
                 try? await Task.sleep(for: .milliseconds(350))
                 guard !Task.isCancelled else { return }
                 await model.loadPreview(animate: !reduceMotion)
+            }
+            .task(id: selectedPhoto) {
+                guard let selectedPhoto else { return }
+                await loadSelectedPhoto(selectedPhoto)
             }
         }
     }
@@ -385,7 +453,7 @@ struct ShareComposerView: View {
     // MARK: - Subviews
 
     private var productImage: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 12) {
             if let data = model.imageData, let image = UIImage(data: data) {
                 HStack(spacing: 14) {
                     Image(uiImage: image)
@@ -393,29 +461,74 @@ struct ShareComposerView: View {
                         .scaledToFill()
                         .frame(width: 72, height: 72)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            if isLoadingSelectedPhoto {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.black.opacity(0.35))
+
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                        }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("대표 사진을 가져왔어요")
+                        Text(selectedPhoto == nil ? "대표 사진을 가져왔어요" : "대표 사진을 추가했어요")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(themeInk)
 
-                        Button {
-                            Task { await model.loadPreview(animate: !reduceMotion) }
-                        } label: {
-                            Text("다시 불러오기")
-                                .font(.system(size: 12))
-                                .foregroundStyle(themeSecondary)
-                                .underline()
+                        if selectedPhoto == nil {
+                            HStack(spacing: 12) {
+                                Button {
+                                    Task { await model.loadPreview(animate: !reduceMotion) }
+                                } label: {
+                                    Text("다시 불러오기")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(themeSecondary)
+                                        .underline()
+                                }
+                                .buttonStyle(.plain)
+
+                                galleryPicker("사진 바꾸기")
+                            }
+                        } else {
+                            galleryPicker("사진 바꾸기")
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+            } else if isLoadingSelectedPhoto {
+                HStack(spacing: 10) {
+                    ProgressView()
+
+                    Text("사진을 추가하는 중이에요")
+                        .font(.system(size: 14))
+                        .foregroundStyle(themeSecondary)
+                }
+                .frame(minHeight: 54)
             } else {
-                Text("대표 사진을 찾지 못했어요")
-                    .font(.system(size: 14))
-                    .foregroundStyle(themeSecondary)
-                    .frame(minHeight: 54)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("대표 사진을 찾지 못했어요")
+                        .font(.system(size: 14))
+                        .foregroundStyle(themeSecondary)
+
+                    galleryPicker("갤러리에서 직접 추가")
+                }
+                .frame(minHeight: 54, alignment: .leading)
             }
+
+            if let photoSelectionMessage {
+                Text(photoSelectionMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func galleryPicker(_ title: String) -> some View {
+        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(themeSecondary)
+                .underline()
         }
     }
 
@@ -533,6 +646,34 @@ struct ShareComposerView: View {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         model.reviewDate = calendar.date(byAdding: .day, value: days, to: today) ?? today
+    }
+
+    private func loadSelectedPhoto(_ photo: PhotosPickerItem) async {
+        isLoadingSelectedPhoto = true
+        photoSelectionMessage = nil
+        defer { isLoadingSelectedPhoto = false }
+
+        do {
+            guard let data = try await photo.loadTransferable(type: Data.self),
+                let image = UIImage(data: data),
+                let imageData = linkPreviewService.resizedJPEGData(from: image)
+            else {
+                photoSelectionMessage = "사진을 불러오지 못했어요 다시 선택해주세요"
+                selectedPhoto = nil
+                return
+            }
+
+            try Task.checkCancellation()
+            guard selectedPhoto == photo, !model.isSaving else { return }
+
+            withAnimation(revealAnimation) {
+                model.imageData = imageData
+            }
+        } catch is CancellationError {
+        } catch {
+            photoSelectionMessage = "사진을 불러오지 못했어요 다시 선택해주세요"
+            selectedPhoto = nil
+        }
     }
 
     // MARK: - Computed Properties

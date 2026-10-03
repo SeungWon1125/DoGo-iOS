@@ -23,7 +23,7 @@ struct PendingSharedWish: Codable {
 enum SharedLinkInbox {
     // MARK: - Properties
 
-    static let groupIdentifier = "group.won.DoGo-iOS"
+    static let groupIdentifier = "group.app.seungwon.dugo"
 
     // MARK: - Types
 

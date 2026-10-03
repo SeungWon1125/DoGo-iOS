@@ -6,12 +6,17 @@
 //
 
 import Foundation
+@preconcurrency import LinkPresentation
 import UIKit
 
 struct LinkPreview {
     let title: String?
     let imageData: Data?
     let price: Int?
+}
+
+private final class LinkMetadataProviderLifetime: @unchecked Sendable {
+    let provider = LPMetadataProvider()
 }
 
 enum LinkPreviewError: LocalizedError {
@@ -41,6 +46,28 @@ struct LinkPreviewService {
             throw LinkPreviewError.invalidLink
         }
 
+        return try await fetchPage(from: pageURL, remainingRedirects: 2)
+    }
+
+    nonisolated static func usableProductTitle(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let title = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (2...120).contains(title.count) else { return nil }
+
+        let normalized = title.lowercased()
+        guard !normalized.hasPrefix("launching app"),
+            !normalized.hasPrefix("opening app"),
+            !normalized.hasPrefix("deeplink redirect"),
+            !normalized.hasPrefix("쿠팡을 추천합니다"),
+            !normalized.contains("attention required! | cloudflare")
+        else { return nil }
+
+        return title
+    }
+
+    // MARK: - Private Methods
+
+    private func fetchPage(from pageURL: URL, remainingRedirects: Int) async throws -> LinkPreview {
         var request = URLRequest(url: pageURL)
         request.timeoutInterval = 15
         request.setValue(
@@ -48,37 +75,199 @@ struct LinkPreviewService {
             forHTTPHeaderField: "User-Agent"
         )
 
-        let (htmlData, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-            (200...299).contains(httpResponse.statusCode),
-            htmlData.count <= 2_000_000,
-            let html = String(data: htmlData, encoding: .utf8)
-                ?? String(data: htmlData, encoding: .unicode)
-        else {
-            throw LinkPreviewError.invalidResponse
-        }
+        do {
+            let (htmlData, response) = try await URLSession.shared.data(for: request)
+            let html =
+                htmlData.count <= 2_000_000
+                ? (String(data: htmlData, encoding: .utf8)
+                    ?? String(data: htmlData, encoding: .unicode))
+                : nil
 
-        let title =
-            metadataValue(named: "og:title", in: html)
-            ?? metadataValue(named: "twitter:title", in: html)
-            ?? pageTitle(in: html)
-        let imagePath =
-            metadataValue(named: "og:image", in: html)
-            ?? metadataValue(named: "twitter:image", in: html)
-        let imageURL = imagePath.flatMap {
-            URL(string: decodedHTML($0), relativeTo: pageURL)?.absoluteURL
-        }
-        let imageData = try? await loadImage(from: imageURL)
-        try Task.checkCancellation()
+            let resolvedURL = response.url ?? pageURL
+            let pageTitle = html.flatMap(pageTitle(in:))
+            let hasUsableTitle = html.flatMap {
+                Self.usableProductTitle(metadataValue(named: "og:title", in: $0))
+                    ?? Self.usableProductTitle(metadataValue(named: "twitter:title", in: $0))
+            } ?? Self.usableProductTitle(pageTitle)
+            if remainingRedirects > 0,
+                let productURL = destinationURL(
+                    from: resolvedURL,
+                    html: html,
+                    hasUsableTitle: hasUsableTitle != nil
+                ),
+                productURL != pageURL,
+                productURL != resolvedURL
+            {
+                return try await fetchPage(from: productURL, remainingRedirects: remainingRedirects - 1)
+            }
 
-        return LinkPreview(
-            title: title.map(decodedHTML),
-            imageData: imageData,
-            price: productPrice(in: html)
-        )
+            guard let httpResponse = response as? HTTPURLResponse,
+                (200...299).contains(httpResponse.statusCode),
+                let html
+            else {
+                throw LinkPreviewError.invalidResponse
+            }
+
+            let title =
+                Self.usableProductTitle(metadataValue(named: "og:title", in: html))
+                ?? Self.usableProductTitle(metadataValue(named: "twitter:title", in: html))
+                ?? Self.usableProductTitle(pageTitle)
+            let imagePath =
+                metadataValue(named: "og:image", in: html)
+                ?? metadataValue(named: "twitter:image", in: html)
+            let imageURL = imagePath.flatMap {
+                URL(string: decodedHTML($0), relativeTo: resolvedURL)?.absoluteURL
+            }
+            let imageData = try? await loadImage(from: imageURL)
+            try Task.checkCancellation()
+
+            if title != nil, imageData != nil {
+                return LinkPreview(
+                    title: title.map(decodedHTML),
+                    imageData: imageData,
+                    price: productPrice(in: html)
+                )
+            }
+
+            let systemPreview = await systemLinkPreview(for: resolvedURL)
+            return LinkPreview(
+                title: title.map(decodedHTML) ?? systemPreview?.title,
+                imageData: imageData ?? systemPreview?.imageData,
+                price: productPrice(in: html)
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if let systemPreview = await systemLinkPreview(for: pageURL) {
+                return systemPreview
+            }
+            throw error
+        }
     }
 
-    // MARK: - Private Methods
+    private func musinsaProductURL(from url: URL) -> URL? {
+        guard let host = url.host?.lowercased(),
+            host == "musinsa.com" || host.hasSuffix(".musinsa.com")
+        else { return nil }
+
+        let components = url.pathComponents.filter { $0 != "/" }
+        let productID: String?
+        if components.count >= 2, components[0] == "products" {
+            productID = components[1]
+        } else if components.count >= 3,
+            components[0] == "app",
+            components[1] == "goods"
+        {
+            productID = components[2]
+        } else {
+            productID = nil
+        }
+
+        guard let productID, !productID.isEmpty,
+            productID.allSatisfy(\.isNumber)
+        else { return nil }
+        return URL(string: "https://www.musinsa.com/products/\(productID)")
+    }
+
+    private func destinationURL(from pageURL: URL, html: String?, hasUsableTitle: Bool) -> URL? {
+        if let normalizedURL = musinsaProductURL(from: pageURL), normalizedURL != pageURL {
+            return normalizedURL
+        }
+
+        guard !hasUsableTitle else { return nil }
+
+        let queryNames = ["af_web_dp", "af_ios_url", "af_android_url", "deep_link_value", "url", "link"]
+        if let components = URLComponents(url: pageURL, resolvingAgainstBaseURL: false) {
+            for name in queryNames {
+                if let value = components.queryItems?.first(where: { $0.name == name })?.value,
+                    let destination = webDestination(value, relativeTo: pageURL),
+                    destination != pageURL
+                {
+                    return destination
+                }
+            }
+        }
+
+        guard let html else { return nil }
+
+        let scriptPatterns = [
+            #"(?i)\b(?:store_link|web_link|redirectWebUrl|af_web_dp|fallback_url)\s*[:=]\s*['\"]([^'\"]+)['\"]"#,
+            #"(?i)\b(?:window\.)?location(?:\.href)?\s*=\s*['\"]([^'\"]+)['\"]"#,
+        ]
+        for pattern in scriptPatterns {
+            if let value = firstCapture(for: pattern, in: html),
+                let destination = webDestination(value, relativeTo: pageURL),
+                destination != pageURL
+            {
+                return destination
+            }
+        }
+
+        if let value = metadataValue(named: "og:url", in: html),
+            let destination = webDestination(value, relativeTo: pageURL),
+            destination != pageURL
+        {
+            return destination
+        }
+
+        for tag in matches(for: #"(?is)<link\b[^>]*>"#, in: html) {
+            if attribute(named: "rel", in: tag)?.lowercased() == "canonical",
+                let value = attribute(named: "href", in: tag),
+                let destination = webDestination(value, relativeTo: pageURL),
+                destination != pageURL
+            {
+                return destination
+            }
+        }
+
+        return nil
+    }
+
+    private func webDestination(_ value: String, relativeTo pageURL: URL) -> URL? {
+        var decoded = decodedHTML(value)
+            .replacingOccurrences(of: #"\/"#, with: "/")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        decoded = decodedJavaScriptEscapes(decoded)
+        if decoded.hasPrefix("%"), let percentDecoded = decoded.removingPercentEncoding {
+            decoded = percentDecoded
+        }
+
+        guard let url = URL(string: decoded, relativeTo: pageURL)?.absoluteURL,
+            let scheme = url.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            url.host != nil
+        else { return nil }
+
+        return musinsaProductURL(from: url) ?? url
+    }
+
+    private func decodedJavaScriptEscapes(_ value: String) -> String {
+        guard let expression = try? NSRegularExpression(pattern: #"\\x([0-9a-fA-F]{2})"#) else {
+            return value
+        }
+
+        var result = value
+        let matches = expression.matches(in: value, range: NSRange(value.startIndex..., in: value))
+        for match in matches.reversed() {
+            guard let hexRange = Range(match.range(at: 1), in: result),
+                let replacementRange = Range(match.range, in: result),
+                let code = UInt8(result[hexRange], radix: 16)
+            else { continue }
+            result.replaceSubrange(replacementRange, with: String(UnicodeScalar(code)))
+        }
+        return result
+    }
+
+    private func firstCapture(for pattern: String, in value: String) -> String? {
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+            let match = expression.firstMatch(
+                in: value,
+                range: NSRange(value.startIndex..., in: value)
+            ),
+            let range = Range(match.range(at: 1), in: value)
+        else { return nil }
+        return String(value[range])
+    }
 
     private func productPrice(in html: String) -> Int? {
         for prefix in ["product:price:", "og:price:"] {
@@ -123,6 +312,41 @@ struct LinkPreviewService {
         }
 
         return resizedJPEGData(from: image)
+    }
+
+    private func systemLinkPreview(for url: URL) async -> LinkPreview? {
+        let metadata: LPLinkMetadata? = await withCheckedContinuation { continuation in
+            let lifetime = LinkMetadataProviderLifetime()
+            lifetime.provider.timeout = 15
+            lifetime.provider.startFetchingMetadata(for: url) { metadata, _ in
+                withExtendedLifetime(lifetime) {
+                    continuation.resume(returning: metadata)
+                }
+            }
+        }
+        guard let metadata else { return nil }
+
+        let title = Self.usableProductTitle(metadata.title)
+        if metadata.title != nil, title == nil { return nil }
+        let imageData = await imageData(from: metadata.imageProvider)
+        guard title != nil || imageData != nil else { return nil }
+
+        return LinkPreview(
+            title: title,
+            imageData: imageData,
+            price: nil
+        )
+    }
+
+    private func imageData(from provider: NSItemProvider?) async -> Data? {
+        guard let provider, provider.canLoadObject(ofClass: UIImage.self) else { return nil }
+
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            provider.loadObject(ofClass: UIImage.self) { object, _ in
+                continuation.resume(returning: object as? UIImage)
+            }
+        }
+        return image.flatMap(resizedJPEGData)
     }
 
     private func metadataValue(named name: String, in html: String) -> String? {

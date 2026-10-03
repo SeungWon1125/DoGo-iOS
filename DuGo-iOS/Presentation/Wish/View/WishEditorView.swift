@@ -41,9 +41,7 @@ struct WishEditorView: View {
     @State private var isLoadingLinkPreview = false
     @State private var linkPreviewMessage: String?
     @FocusState private var focusedField: InputField?
-    @AppStorage("hasSeenWishLinkHint") private var hasSeenLinkHint = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showsLinkHint = false
     @State private var isSaving = false
     @State private var activePreviewID: UUID?
     @State private var activeImageReloadID: UUID?
@@ -123,13 +121,6 @@ struct WishEditorView: View {
         .onAppear {
             viewModel.errorMessage = nil
             formatPrice()
-
-            if item == nil, !hasSeenLinkHint {
-                showsLinkHint = true
-                hasSeenLinkHint = true
-            } else {
-                showsLinkHint = false
-            }
         }
         .task(id: PreviewRequest(link: trimmedLink, isSaving: isSaving)) {
             guard !isSaving else { return }
@@ -187,57 +178,10 @@ struct WishEditorView: View {
                     DuGoPasteButton { link in
                         draft.link = link
                         focusedField = nil
-                        showsLinkHint = false
                     }
                 }
             }
-            .overlay(alignment: .topTrailing) {
-                Group {
-                    if showsLinkHint {
-                        linkHintCallout
-                            .offset(x: -16, y: 50)
-                            .transition(.opacity)
-                    }
-                }
-                .animation(
-                    reduceMotion ? nil : .easeInOut(duration: 0.2),
-                    value: showsLinkHint
-                )
-            }
-            .zIndex(showsLinkHint ? 1 : 0)
         }
-        .zIndex(showsLinkHint ? 1 : 0)
-    }
-
-    private var linkHintCallout: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Text("상품 정보를 자동으로 채워드려요 ✨")
-                .applyDuGoFont(.caption12Regular)
-                .foregroundStyle(DuGoTheme.ink)
-                .fixedSize(horizontal: true, vertical: false)
-
-            Button {
-                showsLinkHint = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DuGoTheme.ink)
-                    .frame(width: 28, height: 28)
-            }
-        }
-        .padding(12)
-        .padding(.leading, 6)
-        .padding(.top, 9)
-        .background(
-            .regularMaterial,
-            in: LinkHintBubbleShape()
-        )
-        .overlay {
-            LinkHintBubbleShape()
-                .stroke(Color.white.opacity(0.28), lineWidth: 0.5)
-        }
-        .shadow(color: Color.black.opacity(0.12), radius: 12, y: 5)
-        .fixedSize(horizontal: true, vertical: true)
     }
 
     private var itemInformationSection: some View {
@@ -621,7 +565,6 @@ struct WishEditorView: View {
         activePreviewID = requestID
         isLoadingLinkPreview = true
         linkPreviewMessage = nil
-        showsLinkHint = false
         defer {
             if activePreviewID == requestID {
                 isLoadingLinkPreview = false
@@ -764,52 +707,6 @@ struct WishEditorView: View {
             guard activePhotoSelectionID == requestID, trimmedLink == link else { return }
             photoSelectionMessage = "사진을 불러오지 못했어요 다시 선택해주세요"
             selectedPhoto = nil
-        }
-    }
-}
-
-private struct LinkHintBubbleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let pointerHeight: CGFloat = 9
-        let pointerWidth: CGFloat = 18
-        let pointerTrailing: CGFloat = 45
-        let body = CGRect(
-            x: rect.minX,
-            y: rect.minY + pointerHeight,
-            width: rect.width,
-            height: max(0, rect.height - pointerHeight)
-        )
-        let radius = min(14, body.width / 2, body.height / 2)
-        let pointerCenterX = body.maxX - pointerTrailing
-        let pointerStartX = pointerCenterX - pointerWidth / 2
-        let pointerEndX = pointerCenterX + pointerWidth / 2
-
-        return Path { path in
-            path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
-            path.addLine(to: CGPoint(x: pointerStartX, y: body.minY))
-            path.addLine(to: CGPoint(x: pointerCenterX, y: rect.minY))
-            path.addLine(to: CGPoint(x: pointerEndX, y: body.minY))
-            path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
-            path.addQuadCurve(
-                to: CGPoint(x: body.maxX, y: body.minY + radius),
-                control: CGPoint(x: body.maxX, y: body.minY)
-            )
-            path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
-            path.addQuadCurve(
-                to: CGPoint(x: body.maxX - radius, y: body.maxY),
-                control: CGPoint(x: body.maxX, y: body.maxY)
-            )
-            path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
-            path.addQuadCurve(
-                to: CGPoint(x: body.minX, y: body.maxY - radius),
-                control: CGPoint(x: body.minX, y: body.maxY)
-            )
-            path.addLine(to: CGPoint(x: body.minX, y: body.minY + radius))
-            path.addQuadCurve(
-                to: CGPoint(x: body.minX + radius, y: body.minY),
-                control: CGPoint(x: body.minX, y: body.minY)
-            )
-            path.closeSubpath()
         }
     }
 }

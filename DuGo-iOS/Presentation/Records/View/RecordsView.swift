@@ -457,7 +457,7 @@ struct RecordsView: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                DuGoTheme.surface
+                DuGoImagePlaceholder()
             }
         }
         .frame(width: 90, height: 90)

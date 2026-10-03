@@ -6,7 +6,7 @@
 import Foundation
 
 struct WishCategoryRepository {
-    static let appGroupIdentifier = "group.won.DoGo-iOS"
+    static let appGroupIdentifier = "group.app.seungwon.dugo"
     static let storageKey = "wishCategories.v1"
     static let defaultCategories = WishCategory.allCases.map(\.rawValue)
 

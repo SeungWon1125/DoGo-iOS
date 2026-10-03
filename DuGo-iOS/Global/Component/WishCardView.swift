@@ -7,6 +7,26 @@
 
 import SwiftUI
 
+struct DuGoImagePlaceholder: View {
+    // MARK: - Body
+
+    var body: some View {
+        Rectangle()
+            .fill(DuGoTheme.surfaceInset)
+            .overlay(DuGoTheme.surface.opacity(0.5))
+            .overlay {
+                GeometryReader { geometry in
+                    let logoSize = min(geometry.size.width, geometry.size.height) * 0.45
+
+                    DuGoLogoImage(width: logoSize, height: logoSize)
+                        .foregroundStyle(.duGoBorder.opacity(0.5))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
 struct FillWishImage: View {
     // MARK: - Properties
 
@@ -23,7 +43,7 @@ struct FillWishImage: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: size, height: size)
             } else {
-                DuGoTheme.surface
+                DuGoImagePlaceholder()
                     .aspectRatio(1.12, contentMode: .fit)
             }
         }
@@ -55,7 +75,7 @@ struct FitWishImage: View {
                     .frame(maxWidth: .infinity)
                     .background(DuGoTheme.surface)
             } else {
-                DuGoTheme.surface
+                DuGoImagePlaceholder()
                     .aspectRatio(1.12, contentMode: .fit)
             }
         }
@@ -126,4 +146,8 @@ struct ReminderNoticeView: View {
             }
         }
     }
+}
+
+#Preview {
+    DuGoImagePlaceholder()
 }
