@@ -46,6 +46,7 @@ struct ContentView: View {
             tabContent
                 .toolbarVisibility(.hidden, for: .navigationBar)
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .tint(DuGoTheme.accent)
         .task {
             await viewModel.refresh()
@@ -66,6 +67,7 @@ struct ContentView: View {
                     selectedTab = .home
                 }
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
@@ -77,6 +79,7 @@ struct ContentView: View {
                     WishDetailView(item: item, viewModel: viewModel)
                 }
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
     }
 

@@ -116,6 +116,7 @@ struct WishEditorView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar { toolbarContent }
+        .dismissKeyboardOnBackgroundTap()
         .disabled(viewModel.isWorking || isSaving)
         .interactiveDismissDisabled(viewModel.isWorking || isSaving)
         .onAppear {
@@ -424,17 +425,6 @@ struct WishEditorView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .keyboard) {
-            Spacer()
-            Button("완료") {
-                if focusedField == .price {
-                    formatPrice()
-                }
-                focusedField = nil
-            }
-            .applyDuGoFont(.button14Medium)
-        }
-
         if let onCancel {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: onCancel) {
