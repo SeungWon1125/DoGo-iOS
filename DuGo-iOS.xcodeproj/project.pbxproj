@@ -13,6 +13,9 @@
 		B10A00000000000000000012 /* DuGo-iOS/Service/LinkPreviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */; };
 		B10A00000000000000000013 /* DuGo-iOS/Service/LinkPriceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */; };
 		B10A00000000000000000014 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10A00000000000000000001 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10B00000000000000000004 /* DuGo-iOS/Service/ShoppingLinkAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10B00000000000000000001 /* DuGo-iOS/Service/ShoppingLinkAdapter.swift */; };
+		B10B00000000000000000005 /* DuGo-iOS/Service/MusinsaLinkAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10B00000000000000000002 /* DuGo-iOS/Service/MusinsaLinkAdapter.swift */; };
+		B10B00000000000000000006 /* DuGo-iOS/Service/OliveYoungLinkAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10B00000000000000000003 /* DuGo-iOS/Service/OliveYoungLinkAdapter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +51,9 @@
 		B10A00000000000000000006 /* DuGo-iOS/Service/SharedLinkInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/SharedLinkInbox.swift"; sourceTree = "<group>"; };
 		B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/LinkPreviewService.swift"; sourceTree = "<group>"; };
 		B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/LinkPriceParser.swift"; sourceTree = "<group>"; };
+		B10B00000000000000000001 /* DuGo-iOS/Service/ShoppingLinkAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/ShoppingLinkAdapter.swift"; sourceTree = "<group>"; };
+		B10B00000000000000000002 /* DuGo-iOS/Service/MusinsaLinkAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/MusinsaLinkAdapter.swift"; sourceTree = "<group>"; };
+		B10B00000000000000000003 /* DuGo-iOS/Service/OliveYoungLinkAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DuGo-iOS/Service/OliveYoungLinkAdapter.swift"; sourceTree = "<group>"; };
 		E3EB0B30305D80860017CC71 /* DuGo-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DuGo-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -96,6 +102,9 @@
 				B10A00000000000000000006 /* DuGo-iOS/Service/SharedLinkInbox.swift */,
 				B10A00000000000000000007 /* DuGo-iOS/Service/LinkPreviewService.swift */,
 				B10A00000000000000000008 /* DuGo-iOS/Service/LinkPriceParser.swift */,
+				B10B00000000000000000001 /* DuGo-iOS/Service/ShoppingLinkAdapter.swift */,
+				B10B00000000000000000002 /* DuGo-iOS/Service/MusinsaLinkAdapter.swift */,
+				B10B00000000000000000003 /* DuGo-iOS/Service/OliveYoungLinkAdapter.swift */,
 				E3EB0B31305D80860017CC71 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -216,6 +225,9 @@
 				B10A00000000000000000011 /* DuGo-iOS/Service/SharedLinkInbox.swift in Sources */,
 				B10A00000000000000000012 /* DuGo-iOS/Service/LinkPreviewService.swift in Sources */,
 				B10A00000000000000000013 /* DuGo-iOS/Service/LinkPriceParser.swift in Sources */,
+				B10B00000000000000000004 /* DuGo-iOS/Service/ShoppingLinkAdapter.swift in Sources */,
+				B10B00000000000000000005 /* DuGo-iOS/Service/MusinsaLinkAdapter.swift in Sources */,
+				B10B00000000000000000006 /* DuGo-iOS/Service/OliveYoungLinkAdapter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
