@@ -201,6 +201,15 @@ final class ShareComposerModel: ObservableObject {
 }
 
 struct ShareComposerView: View {
+    // MARK: - Types
+
+    private enum InputField: Hashable {
+        case link
+        case title
+        case price
+        case reason
+    }
+
     // MARK: - Properties
 
     @ObservedObject var model: ShareComposerModel
@@ -209,8 +218,7 @@ struct ShareComposerView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var isLinkFocused: Bool
-    @FocusState private var isPriceFocused: Bool
+    @FocusState private var focusedField: InputField?
     @State private var visibleErrorMessage: String?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var selectedPhoto: PhotosPickerItem?
@@ -222,7 +230,7 @@ struct ShareComposerView: View {
     // MARK: - Computed Properties
 
     private var categories: [String] {
-        let defaults = UserDefaults(suiteName: "group.app.seungwon.dugo")
+        let defaults = UserDefaults(suiteName: SharedLinkInbox.groupIdentifier)
         let saved = defaults?.stringArray(forKey: "wishCategories.v1")
         return saved?.isEmpty == false
             ? saved ?? ["미분류"]
@@ -241,11 +249,11 @@ struct ShareComposerView: View {
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .focused($isLinkFocused)
+                            .focused($focusedField, equals: .link)
                             .frame(minHeight: 48)
                             .onSubmit {
                                 presentInvalidLinkErrorIfNeeded()
-                                isLinkFocused = false
+                                focusedField = nil
                             }
                     }
 
@@ -281,6 +289,7 @@ struct ShareComposerView: View {
 
                                     TextField("상품 이름", text: $model.title)
                                         .font(.system(size: 16))
+                                        .focused($focusedField, equals: .title)
                                         .frame(minHeight: 54)
                                         .background { autofillBackground(for: .title) }
 
@@ -289,7 +298,7 @@ struct ShareComposerView: View {
                                     TextField("가격 (원)", text: $model.price)
                                         .font(.system(size: 16))
                                         .keyboardType(.numberPad)
-                                        .focused($isPriceFocused)
+                                        .focused($focusedField, equals: .price)
                                         .frame(minHeight: 54)
                                         .background { autofillBackground(for: .price) }
 
@@ -329,6 +338,7 @@ struct ShareComposerView: View {
                                     TextField("어떤 순간에 필요할까요?", text: $model.reason, axis: .vertical)
                                         .font(.system(size: 16))
                                         .lineLimit(4...7)
+                                        .focused($focusedField, equals: .reason)
                                         .frame(minHeight: 96, alignment: .topLeading)
                                 }
 
@@ -392,17 +402,8 @@ struct ShareComposerView: View {
                     .fontWeight(.semibold)
                     .disabled(model.validURL == nil || model.isSaving)
                 }
-
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-
-                    Button("완료") {
-                        model.formatPrice()
-                        isPriceFocused = false
-                    }
-                    .font(.system(size: 14, weight: .medium))
-                }
             }
+            .dismissKeyboardOnBackgroundTap()
             .overlay(alignment: .top) {
                 if let visibleErrorMessage {
                     shareErrorToast(visibleErrorMessage)
@@ -417,15 +418,14 @@ struct ShareComposerView: View {
                         .zIndex(10)
                 }
             }
-            .onChange(of: isLinkFocused) { wasFocused, isFocused in
-                if wasFocused && !isFocused {
+            .onChange(of: focusedField) { previousField, currentField in
+                if previousField == .link, currentField != .link {
                     presentInvalidLinkErrorIfNeeded()
                 }
-            }
-            .onChange(of: isPriceFocused) { wasFocused, isFocused in
-                if wasFocused && !isFocused {
+
+                if previousField == .price, currentField != .price {
                     model.formatPrice()
-                } else if isFocused {
+                } else if currentField == .price {
                     model.preparePriceForEditing()
                 }
             }
@@ -448,6 +448,7 @@ struct ShareComposerView: View {
                 await loadSelectedPhoto(selectedPhoto)
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     // MARK: - Subviews

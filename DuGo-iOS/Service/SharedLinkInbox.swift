@@ -23,7 +23,18 @@ struct PendingSharedWish: Codable {
 enum SharedLinkInbox {
     // MARK: - Properties
 
-    static let groupIdentifier = "group.app.seungwon.dugo"
+    static let groupIdentifier: String = {
+        guard
+            let identifier = Bundle.main.object(
+                forInfoDictionaryKey: "DuGoAppGroupIdentifier"
+            ) as? String,
+            !identifier.isEmpty
+        else {
+            return "group.app.seungwon.dugo"
+        }
+
+        return identifier
+    }()
 
     // MARK: - Types
 
