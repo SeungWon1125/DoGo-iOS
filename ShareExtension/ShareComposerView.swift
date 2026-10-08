@@ -50,6 +50,26 @@ final class ShareComposerModel: ObservableObject {
         return url
     }
 
+    private var sharedAutofilledFields: Set<AutofilledField> {
+        var fields: Set<AutofilledField> = []
+
+        if sharedContentImageData != nil {
+            fields.insert(.image)
+        }
+
+        if let sharedContentTitle,
+            !sharedContentTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            fields.insert(.title)
+        }
+
+        if sharedContentPrice != nil {
+            fields.insert(.price)
+        }
+
+        return fields
+    }
+
     // MARK: - Types
 
     enum AutofilledField: Hashable {
@@ -60,6 +80,7 @@ final class ShareComposerModel: ObservableObject {
 
     func preparePreview() {
         let usesSharedContent = link == sharedContentLink
+
         isLoadingPreview = false
         previewedLink = nil
         highlightedFields = []
@@ -85,6 +106,7 @@ final class ShareComposerModel: ObservableObject {
     func loadPreview(animate: Bool) async {
         guard validURL != nil else { return }
         let requestedLink = link
+        var newlyAutofilledFields: Set<AutofilledField> = []
         isLoadingPreview = true
 
         do {
@@ -93,8 +115,8 @@ final class ShareComposerModel: ObservableObject {
             if imageData == nil, let image = preview.imageData {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     imageData = image
-                    highlightedFields.insert(.image)
                 }
+                newlyAutofilledFields.insert(.image)
             }
             if animate {
                 try? await Task.sleep(for: .milliseconds(150))
@@ -104,8 +126,8 @@ final class ShareComposerModel: ObservableObject {
             if title.isEmpty, let previewTitle = preview.title {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     title = previewTitle
-                    highlightedFields.insert(.title)
                 }
+                newlyAutofilledFields.insert(.title)
             }
             if animate {
                 try? await Task.sleep(for: .milliseconds(150))
@@ -116,20 +138,20 @@ final class ShareComposerModel: ObservableObject {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     price = String(amount)
                     formatPrice()
-                    highlightedFields.insert(.price)
                 }
+                newlyAutofilledFields.insert(.price)
             }
         } catch {
         }
         guard !Task.isCancelled, link == requestedLink else { return }
-        isLoadingPreview = false
-        previewedLink = requestedLink
+        if requestedLink == sharedContentLink {
+            newlyAutofilledFields.formUnion(sharedAutofilledFields)
+        }
 
-        if !highlightedFields.isEmpty {
-            try? await Task.sleep(for: .milliseconds(500))
-            withAnimation(animate ? .easeOut(duration: 0.35) : nil) {
-                highlightedFields = []
-            }
+        withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
+            isLoadingPreview = false
+            previewedLink = requestedLink
+            highlightedFields = newlyAutofilledFields
         }
     }
 
@@ -201,6 +223,15 @@ final class ShareComposerModel: ObservableObject {
 }
 
 struct ShareComposerView: View {
+    // MARK: - Types
+
+    private enum InputField: Hashable {
+        case link
+        case title
+        case price
+        case reason
+    }
+
     // MARK: - Properties
 
     @ObservedObject var model: ShareComposerModel
@@ -209,8 +240,7 @@ struct ShareComposerView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var isLinkFocused: Bool
-    @FocusState private var isPriceFocused: Bool
+    @FocusState private var focusedField: InputField?
     @State private var visibleErrorMessage: String?
     @State private var errorDismissTask: Task<Void, Never>?
     @State private var selectedPhoto: PhotosPickerItem?
@@ -222,7 +252,7 @@ struct ShareComposerView: View {
     // MARK: - Computed Properties
 
     private var categories: [String] {
-        let defaults = UserDefaults(suiteName: "group.app.seungwon.dugo")
+        let defaults = UserDefaults(suiteName: SharedLinkInbox.groupIdentifier)
         let saved = defaults?.stringArray(forKey: "wishCategories.v1")
         return saved?.isEmpty == false
             ? saved ?? ["미분류"]
@@ -241,11 +271,11 @@ struct ShareComposerView: View {
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .focused($isLinkFocused)
+                            .focused($focusedField, equals: .link)
                             .frame(minHeight: 48)
                             .onSubmit {
                                 presentInvalidLinkErrorIfNeeded()
-                                isLinkFocused = false
+                                focusedField = nil
                             }
                     }
 
@@ -281,6 +311,7 @@ struct ShareComposerView: View {
 
                                     TextField("상품 이름", text: $model.title)
                                         .font(.system(size: 16))
+                                        .focused($focusedField, equals: .title)
                                         .frame(minHeight: 54)
                                         .background { autofillBackground(for: .title) }
 
@@ -289,7 +320,7 @@ struct ShareComposerView: View {
                                     TextField("가격 (원)", text: $model.price)
                                         .font(.system(size: 16))
                                         .keyboardType(.numberPad)
-                                        .focused($isPriceFocused)
+                                        .focused($focusedField, equals: .price)
                                         .frame(minHeight: 54)
                                         .background { autofillBackground(for: .price) }
 
@@ -329,6 +360,7 @@ struct ShareComposerView: View {
                                     TextField("어떤 순간에 필요할까요?", text: $model.reason, axis: .vertical)
                                         .font(.system(size: 16))
                                         .lineLimit(4...7)
+                                        .focused($focusedField, equals: .reason)
                                         .frame(minHeight: 96, alignment: .topLeading)
                                 }
 
@@ -392,17 +424,8 @@ struct ShareComposerView: View {
                     .fontWeight(.semibold)
                     .disabled(model.validURL == nil || model.isSaving)
                 }
-
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-
-                    Button("완료") {
-                        model.formatPrice()
-                        isPriceFocused = false
-                    }
-                    .font(.system(size: 14, weight: .medium))
-                }
             }
+            .dismissKeyboardOnBackgroundTap()
             .overlay(alignment: .top) {
                 if let visibleErrorMessage {
                     shareErrorToast(visibleErrorMessage)
@@ -417,15 +440,14 @@ struct ShareComposerView: View {
                         .zIndex(10)
                 }
             }
-            .onChange(of: isLinkFocused) { wasFocused, isFocused in
-                if wasFocused && !isFocused {
+            .onChange(of: focusedField) { previousField, currentField in
+                if previousField == .link, currentField != .link {
                     presentInvalidLinkErrorIfNeeded()
                 }
-            }
-            .onChange(of: isPriceFocused) { wasFocused, isFocused in
-                if wasFocused && !isFocused {
+
+                if previousField == .price, currentField != .price {
                     model.formatPrice()
-                } else if isFocused {
+                } else if currentField == .price {
                     model.preparePriceForEditing()
                 }
             }
@@ -437,17 +459,28 @@ struct ShareComposerView: View {
             .task(id: model.link) {
                 selectedPhoto = nil
                 photoSelectionMessage = nil
-                model.preparePreview()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) {
+                    model.preparePreview()
+                }
                 guard model.validURL != nil else { return }
                 try? await Task.sleep(for: .milliseconds(350))
                 guard !Task.isCancelled else { return }
                 await model.loadPreview(animate: !reduceMotion)
+            }
+            .task(id: model.highlightedFields) {
+                guard !model.highlightedFields.isEmpty else { return }
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) {
+                    model.highlightedFields = []
+                }
             }
             .task(id: selectedPhoto) {
                 guard let selectedPhoto else { return }
                 await loadSelectedPhoto(selectedPhoto)
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     // MARK: - Subviews

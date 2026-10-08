@@ -34,6 +34,13 @@ enum LinkPreviewError: LocalizedError {
 }
 
 struct LinkPreviewService {
+    // MARK: - Properties
+
+    private let adapters: [any ShoppingLinkAdapter] = [
+        MusinsaLinkAdapter(),
+        OliveYoungLinkAdapter(),
+    ]
+
     // MARK: - Methods
 
     func fetch(from rawLink: String) async throws -> LinkPreview {
@@ -46,7 +53,34 @@ struct LinkPreviewService {
             throw LinkPreviewError.invalidLink
         }
 
-        return try await fetchPage(from: pageURL, remainingRedirects: 2)
+        let adapter = adapter(for: pageURL)
+        let resolvedPageURL = await adapter?.resolvedURL(from: pageURL) ?? pageURL
+        let fallbackPriceTask = adapter.map { adapter in
+            Task { await adapter.fallbackPrice(from: resolvedPageURL) }
+        }
+
+        do {
+            let preview = try await fetchPage(from: resolvedPageURL, remainingRedirects: 2)
+            if preview.price != nil {
+                fallbackPriceTask?.cancel()
+                return preview
+            }
+
+            guard let fallbackPriceTask else { return preview }
+            let price = await fallbackPriceTask.value
+            return LinkPreview(
+                title: preview.title,
+                imageData: preview.imageData,
+                price: price
+            )
+        } catch {
+            guard let fallbackPriceTask,
+                let price = await fallbackPriceTask.value
+            else {
+                throw error
+            }
+            return LinkPreview(title: nil, imageData: nil, price: price)
+        }
     }
 
     nonisolated static func usableProductTitle(_ value: String?) -> String? {
@@ -66,6 +100,14 @@ struct LinkPreviewService {
     }
 
     // MARK: - Private Methods
+
+    private func adapter(for url: URL) -> (any ShoppingLinkAdapter)? {
+        adapters.first { $0.matches(url) }
+    }
+
+    private func normalizedProductURL(from url: URL) -> URL? {
+        adapters.lazy.compactMap { $0.normalizedURL(from: url) }.first
+    }
 
     private func fetchPage(from pageURL: URL, remainingRedirects: Int) async throws -> LinkPreview {
         var request = URLRequest(url: pageURL)
@@ -125,7 +167,7 @@ struct LinkPreviewService {
                 return LinkPreview(
                     title: title.map(decodedHTML),
                     imageData: imageData,
-                    price: productPrice(in: html)
+                    price: productPrice(in: html, pageURL: resolvedURL)
                 )
             }
 
@@ -133,7 +175,7 @@ struct LinkPreviewService {
             return LinkPreview(
                 title: title.map(decodedHTML) ?? systemPreview?.title,
                 imageData: imageData ?? systemPreview?.imageData,
-                price: productPrice(in: html)
+                price: productPrice(in: html, pageURL: resolvedURL)
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -145,32 +187,8 @@ struct LinkPreviewService {
         }
     }
 
-    private func musinsaProductURL(from url: URL) -> URL? {
-        guard let host = url.host?.lowercased(),
-            host == "musinsa.com" || host.hasSuffix(".musinsa.com")
-        else { return nil }
-
-        let components = url.pathComponents.filter { $0 != "/" }
-        let productID: String?
-        if components.count >= 2, components[0] == "products" {
-            productID = components[1]
-        } else if components.count >= 3,
-            components[0] == "app",
-            components[1] == "goods"
-        {
-            productID = components[2]
-        } else {
-            productID = nil
-        }
-
-        guard let productID, !productID.isEmpty,
-            productID.allSatisfy(\.isNumber)
-        else { return nil }
-        return URL(string: "https://www.musinsa.com/products/\(productID)")
-    }
-
     private func destinationURL(from pageURL: URL, html: String?, hasUsableTitle: Bool) -> URL? {
-        if let normalizedURL = musinsaProductURL(from: pageURL), normalizedURL != pageURL {
+        if let normalizedURL = normalizedProductURL(from: pageURL), normalizedURL != pageURL {
             return normalizedURL
         }
 
@@ -238,7 +256,7 @@ struct LinkPreviewService {
             url.host != nil
         else { return nil }
 
-        return musinsaProductURL(from: url) ?? url
+        return normalizedProductURL(from: url) ?? url
     }
 
     private func decodedJavaScriptEscapes(_ value: String) -> String {
@@ -269,7 +287,7 @@ struct LinkPreviewService {
         return String(value[range])
     }
 
-    private func productPrice(in html: String) -> Int? {
+    private func productPrice(in html: String, pageURL: URL) -> Int? {
         for prefix in ["product:price:", "og:price:"] {
             if let currency = metadataValue(named: prefix + "currency", in: html),
                 let amount = metadataValue(named: prefix + "amount", in: html),
@@ -292,7 +310,8 @@ struct LinkPreviewService {
             else { continue }
             return price
         }
-        return nil
+
+        return adapter(for: pageURL)?.price(in: html)
     }
 
     private func loadImage(from url: URL?) async throws -> Data? {
