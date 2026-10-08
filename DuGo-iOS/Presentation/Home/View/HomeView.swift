@@ -85,15 +85,15 @@ struct HomeView: View {
             Spacer()
 
             NavigationLink {
-                CategoryManagementView(viewModel: viewModel)
+                SettingsView(viewModel: viewModel)
             } label: {
-                Image(systemName: "tag")
+                Image(systemName: "gearshape")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DuGoTheme.ink)
                     .frame(width: 30, height: 30)
             }
             .buttonStyle(.glass)
-            .accessibilityLabel("카테고리 관리")
+            .accessibilityLabel("설정")
         }
         .foregroundStyle(DuGoTheme.ink)
     }
