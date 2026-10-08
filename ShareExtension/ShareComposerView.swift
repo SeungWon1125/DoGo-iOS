@@ -2,6 +2,8 @@
 //  ShareComposerView.swift
 //  ShareExtension
 //
+//  Created by 김승원 on 1/10/26.
+//
 
 import Combine
 import PhotosUI

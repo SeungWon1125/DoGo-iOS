@@ -20,6 +20,8 @@ struct DuGo_iOSApp: App {
     // MARK: - Initializer
 
     init() {
+        FirebaseConfigurator.configure()
+
         let manager = ReminderManager()
         manager.start()
         _reminders = StateObject(wrappedValue: manager)

@@ -1,4 +1,12 @@
+//
+//  AppVersionMonitor.swift
+//  DuGo-iOS
+//
+//  Created by 김승원 on 4/10/26.
+//
+
 import Combine
+import FirebaseRemoteConfig
 import Foundation
 import OSLog
 
@@ -6,11 +14,19 @@ import OSLog
 final class AppVersionMonitor: ObservableObject {
     // MARK: - Types
 
+    private enum UpdateLevel {
+        case none
+        case optional
+        case required
+    }
+
     private struct AppVersion: Comparable {
         let components: [Int]
+        let rawValue: String
 
         init?(_ value: String) {
-            let parts = value.split(separator: ".", omittingEmptySubsequences: false)
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
             guard !parts.isEmpty else { return nil }
 
             var components: [Int] = []
@@ -28,7 +44,9 @@ final class AppVersionMonitor: ObservableObject {
             while components.count > 1 && components.last == 0 {
                 components.removeLast()
             }
+
             self.components = components
+            rawValue = trimmed
         }
 
         static func < (lhs: Self, rhs: Self) -> Bool {
@@ -41,39 +59,68 @@ final class AppVersionMonitor: ObservableObject {
         }
     }
 
+    private struct UpdatePolicy {
+        let minimumVersion: AppVersion
+        let latestVersion: AppVersion
+        let appStoreURL: URL?
+        let requiredMessage: String
+        let optionalMessage: String
+    }
+
     private struct LookupResponse: Decodable {
         let results: [StoreApp]
     }
 
     private struct StoreApp: Decodable {
         let bundleId: String
-        let version: String
         let trackViewUrl: URL
     }
 
+    private enum RemoteKey {
+        static let minimumVersion = "minimum_supported_version"
+        static let latestVersion = "latest_version"
+        static let appStoreURL = "app_store_url"
+        static let requiredMessage = "force_update_message"
+        static let optionalMessage = "optional_update_message"
+    }
+
     private enum CacheKey {
-        static let version = "dugo.latestVerifiedStoreVersion"
-        static let url = "dugo.latestVerifiedStoreURL"
+        static let storeURL = "dugo.latestVerifiedStoreURL"
+        static let dismissedOptionalVersion = "dugo.dismissedOptionalUpdateVersion"
+    }
+
+    private enum DefaultValue {
+        static let minimumVersion = "1.0.0"
+        static let latestVersion = "1.0.0"
+        static let requiredMessage = "두고를 계속 사용하려면 최신 버전으로 업데이트해 주세요"
+        static let optionalMessage = "새로운 버전의 두고를 사용할 수 있어요"
     }
 
     // MARK: - Properties
 
-    @Published private(set) var isUpdateRequired = false
+    @Published private var updateLevel: UpdateLevel = .none
     @Published var isAlertPresented = false
 
     private(set) var appStoreURL: URL?
+    private(set) var alertMessage = ""
+    private var latestVersion: String?
     private var isChecking = false
 
     private let logger = Logger(subsystem: "app.seungwon.dugo", category: "updates")
+
+    var isUpdateRequired: Bool {
+        updateLevel == .required
+    }
+
+    var alertTitle: String {
+        isUpdateRequired ? "업데이트가 필요해요" : "새로운 버전이 있어요"
+    }
 
     // MARK: - Initializer
 
     init() {
         guard
-            let installed = Self.installedVersion,
-            let cachedString = UserDefaults.standard.string(forKey: CacheKey.version),
-            let cached = AppVersion(cachedString),
-            let urlString = UserDefaults.standard.string(forKey: CacheKey.url),
+            let urlString = UserDefaults.standard.string(forKey: CacheKey.storeURL),
             let url = URL(string: urlString),
             Self.isAppStoreURL(url)
         else {
@@ -81,58 +128,172 @@ final class AppVersionMonitor: ObservableObject {
         }
 
         appStoreURL = url
-        isUpdateRequired = cached > installed
-        isAlertPresented = isUpdateRequired
     }
 
     // MARK: - Methods
 
     func checkForUpdate() async {
         guard !isChecking else { return }
-        guard let installed = Self.installedVersion else { return }
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        guard let installedVersion = Self.installedVersion else { return }
 
         isChecking = true
         defer { isChecking = false }
 
-        do {
-            let storeApp = try await fetchStoreApp(bundleID: bundleID)
-            guard let storeVersion = AppVersion(storeApp.version) else { return }
-            guard Self.isAppStoreURL(storeApp.trackViewUrl) else { return }
+        guard let policy = await fetchRemotePolicy() else { return }
 
-            let cachedString = UserDefaults.standard.string(forKey: CacheKey.version)
-            let cachedVersion = cachedString.flatMap(AppVersion.init)
-            let cachedURLString = UserDefaults.standard.string(forKey: CacheKey.url)
-            let cachedURL = cachedURLString.flatMap(URL.init(string:))
-            if
-                let cachedVersion,
-                let cachedURL,
-                Self.isAppStoreURL(cachedURL),
-                cachedVersion > storeVersion
-            {
-                appStoreURL = cachedURL
-                isUpdateRequired = cachedVersion > installed
-                isAlertPresented = isUpdateRequired
-                return
-            }
-
-            UserDefaults.standard.set(storeApp.version, forKey: CacheKey.version)
-            UserDefaults.standard.set(storeApp.trackViewUrl.absoluteString, forKey: CacheKey.url)
-            appStoreURL = storeApp.trackViewUrl
-            isUpdateRequired = storeVersion > installed
-            isAlertPresented = isUpdateRequired
-        } catch {
-            logger.error("App Store version lookup failed: \(error.localizedDescription)")
+        if let remoteURL = policy.appStoreURL {
+            cacheStoreURL(remoteURL)
+        } else {
+            await refreshStoreURL()
         }
+
+        apply(policy, to: installedVersion)
     }
 
     func presentAlertIfNeeded() {
-        if isUpdateRequired {
-            isAlertPresented = true
+        guard updateLevel != .none else { return }
+        isAlertPresented = true
+    }
+
+    func dismissOptionalUpdate() {
+        guard updateLevel == .optional else { return }
+
+        if let latestVersion {
+            UserDefaults.standard.set(
+                latestVersion,
+                forKey: CacheKey.dismissedOptionalVersion
+            )
         }
+
+        updateLevel = .none
+        isAlertPresented = false
     }
 
     // MARK: - Private Methods
+
+    private func fetchRemotePolicy() async -> UpdatePolicy? {
+        guard FirebaseConfigurator.isConfigured else {
+            logger.notice("Firebase is not configured; update policy check skipped")
+            return nil
+        }
+
+        let remoteConfig = RemoteConfig.remoteConfig()
+        let settings = RemoteConfigSettings()
+
+#if DEBUG
+        settings.minimumFetchInterval = 0
+#else
+        settings.minimumFetchInterval = 3_600
+#endif
+
+        remoteConfig.configSettings = settings
+        remoteConfig.setDefaults([
+            RemoteKey.minimumVersion: DefaultValue.minimumVersion as NSObject,
+            RemoteKey.latestVersion: DefaultValue.latestVersion as NSObject,
+            RemoteKey.appStoreURL: "" as NSObject,
+            RemoteKey.requiredMessage: DefaultValue.requiredMessage as NSObject,
+            RemoteKey.optionalMessage: DefaultValue.optionalMessage as NSObject
+        ])
+
+        do {
+            try await remoteConfig.fetchAndActivate()
+        } catch {
+            logger.error("Remote Config fetch failed: \(error.localizedDescription)")
+        }
+
+        let minimumString = remoteConfig[RemoteKey.minimumVersion].stringValue
+        let latestString = remoteConfig[RemoteKey.latestVersion].stringValue
+
+        guard let minimumVersion = AppVersion(minimumString) else {
+            logger.error("Invalid minimum supported version: \(minimumString)")
+            return nil
+        }
+
+        guard let configuredLatestVersion = AppVersion(latestString) else {
+            logger.error("Invalid latest version: \(latestString)")
+            return nil
+        }
+
+        let latestVersion = max(minimumVersion, configuredLatestVersion)
+        let urlString = remoteConfig[RemoteKey.appStoreURL].stringValue
+        let configuredURL = URL(string: urlString).flatMap { url in
+            Self.isAppStoreURL(url) ? url : nil
+        }
+        let requiredMessage = message(
+            remoteConfig[RemoteKey.requiredMessage].stringValue,
+            fallback: DefaultValue.requiredMessage
+        )
+        let optionalMessage = message(
+            remoteConfig[RemoteKey.optionalMessage].stringValue,
+            fallback: DefaultValue.optionalMessage
+        )
+
+        return UpdatePolicy(
+            minimumVersion: minimumVersion,
+            latestVersion: latestVersion,
+            appStoreURL: configuredURL,
+            requiredMessage: requiredMessage,
+            optionalMessage: optionalMessage
+        )
+    }
+
+    private func message(_ value: String, fallback: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    private func refreshStoreURL() async {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+
+        do {
+            let storeApp = try await fetchStoreApp(bundleID: bundleID)
+            guard Self.isAppStoreURL(storeApp.trackViewUrl) else { return }
+            cacheStoreURL(storeApp.trackViewUrl)
+        } catch {
+            logger.error("App Store lookup failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func apply(_ policy: UpdatePolicy, to installedVersion: AppVersion) {
+        latestVersion = policy.latestVersion.rawValue
+
+        if installedVersion < policy.minimumVersion {
+            guard appStoreURL != nil else {
+                logger.error("Required update skipped because the App Store URL is unavailable")
+                return
+            }
+
+            updateLevel = .required
+            alertMessage = policy.requiredMessage
+            isAlertPresented = true
+            return
+        }
+
+        let dismissedVersion = UserDefaults.standard.string(
+            forKey: CacheKey.dismissedOptionalVersion
+        )
+
+        if
+            installedVersion < policy.latestVersion,
+            dismissedVersion != policy.latestVersion.rawValue,
+            appStoreURL != nil
+        {
+            updateLevel = .optional
+            alertMessage = policy.optionalMessage
+            isAlertPresented = true
+            return
+        }
+
+        updateLevel = .none
+        isAlertPresented = false
+    }
+
+    private func cacheStoreURL(_ url: URL) {
+        guard Self.isAppStoreURL(url) else { return }
+
+        appStoreURL = url
+        UserDefaults.standard.set(url.absoluteString, forKey: CacheKey.storeURL)
+    }
 
     private func fetchStoreApp(bundleID: String) async throws -> StoreApp {
         var components = URLComponents()
@@ -166,10 +327,13 @@ final class AppVersionMonitor: ObservableObject {
 
     private static var installedVersion: AppVersion? {
         guard
-            let string = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            let string = Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String
         else {
             return nil
         }
+
         return AppVersion(string)
     }
 

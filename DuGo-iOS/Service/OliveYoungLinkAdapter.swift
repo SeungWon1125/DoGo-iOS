@@ -2,6 +2,8 @@
 //  OliveYoungLinkAdapter.swift
 //  DuGo-iOS
 //
+//  Created by 김승원 on 8/10/26.
+//
 
 import Foundation
 import WebKit

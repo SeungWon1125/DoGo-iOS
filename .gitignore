@@ -25,9 +25,17 @@ xcuserdata/
 .env
 .env.*
 !.env.example
+*.p8
 *.p12
+*.pem
+*.key
 *.mobileprovision
 *.provisionprofile
+Secrets.xcconfig
+*.secrets.xcconfig
+*firebase-adminsdk*.json
+*service-account*.json
+*serviceAccount*.json
 
 # Keep project files, shared schemes, asset catalogs,
 # and application Package.resolved files under version control.
