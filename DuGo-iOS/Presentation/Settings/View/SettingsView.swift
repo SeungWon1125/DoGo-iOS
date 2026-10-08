@@ -10,12 +10,41 @@ import UIKit
 import UserNotifications
 
 struct SettingsView: View {
+    // MARK: - Types
+
+    private enum UpdateCheckAlert: Identifiable {
+        case latest
+        case unavailable
+        case update(title: String, message: String, url: URL)
+
+        var id: String {
+            switch self {
+            case .latest:
+                "latest"
+            case .unavailable:
+                "unavailable"
+            case .update:
+                "update"
+            }
+        }
+    }
+
+    private enum SettingsURL {
+        static let privacyPolicy = URL(
+            string: "https://hail-anger-c0a.notion.site/3eed2ca4eb7c8052a25cefcbbb9cf116?pvs=74"
+        )!
+    }
+
     // MARK: - Properties
 
     @ObservedObject private var viewModel: HomeViewModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+    @StateObject private var versionMonitor = AppVersionMonitor()
     @State private var notificationAuthorizationStatus: UNAuthorizationStatus?
     @State private var isShowingOnboarding = false
+    @State private var isCheckingForUpdate = false
+    @State private var updateCheckAlert: UpdateCheckAlert?
     private let reminders: ReminderManager
 
     // MARK: - Initializer
@@ -63,6 +92,9 @@ struct SettingsView: View {
         }
         .fullScreenCover(isPresented: $isShowingOnboarding) {
             onboardingReplay
+        }
+        .alert(item: $updateCheckAlert) { alert in
+            updateAlert(for: alert)
         }
     }
 
@@ -165,27 +197,34 @@ struct SettingsView: View {
 
                 sectionDivider
 
-                settingsRow(
-                    title: "업데이트 확인",
-                    systemImage: "arrow.triangle.2.circlepath",
-                    showsChevron: true
-                )
+                Button {
+                    checkForUpdate()
+                } label: {
+                    settingsRow(
+                        title: "업데이트 확인",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        trailingText: isCheckingForUpdate ? "확인 중" : nil,
+                        showsChevron: !isCheckingForUpdate
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isCheckingForUpdate)
 
                 sectionDivider
 
-                settingsRow(
-                    title: "개인정보 처리방침",
-                    systemImage: "hand.raised",
-                    showsChevron: true
-                )
-
-                sectionDivider
-
-                settingsRow(
-                    title: "이용약관",
-                    systemImage: "doc.text",
-                    showsChevron: true
-                )
+                NavigationLink {
+                    WebDocumentView(
+                        title: "개인정보 처리방침",
+                        url: SettingsURL.privacyPolicy
+                    )
+                } label: {
+                    settingsRow(
+                        title: "개인정보 처리방침",
+                        systemImage: "hand.raised",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -269,6 +308,65 @@ struct SettingsView: View {
     }
 
     // MARK: - Methods
+
+    private func updateAlert(for alert: UpdateCheckAlert) -> Alert {
+        switch alert {
+        case .latest:
+            Alert(
+                title: Text("최신 버전이에요"),
+                message: Text("현재 최신 버전의 두고를 사용하고 있어요"),
+                dismissButton: .default(Text("확인"))
+            )
+        case .unavailable:
+            Alert(
+                title: Text("업데이트 정보를 확인하지 못했어요"),
+                message: Text("잠시 후 다시 시도해 주세요"),
+                dismissButton: .default(Text("확인"))
+            )
+        case let .update(title, message, url):
+            Alert(
+                title: Text(title),
+                message: Text(message),
+                primaryButton: .cancel(Text("나중에")),
+                secondaryButton: .default(Text("업데이트")) {
+                    openURL(url)
+                }
+            )
+        }
+    }
+
+    private func checkForUpdate() {
+        guard !isCheckingForUpdate else { return }
+
+        isCheckingForUpdate = true
+        Task {
+            let didCheck = await versionMonitor.checkForUpdate(
+                ignoringDismissedVersion: true
+            )
+            isCheckingForUpdate = false
+
+            guard didCheck else {
+                updateCheckAlert = .unavailable
+                return
+            }
+
+            guard versionMonitor.isUpdateAvailable else {
+                updateCheckAlert = .latest
+                return
+            }
+
+            guard let url = versionMonitor.appStoreURL else {
+                updateCheckAlert = .unavailable
+                return
+            }
+
+            updateCheckAlert = .update(
+                title: versionMonitor.alertTitle,
+                message: versionMonitor.alertMessage,
+                url: url
+            )
+        }
+    }
 
     private func manageNotificationPermission() {
         Task {
