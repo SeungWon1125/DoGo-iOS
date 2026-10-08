@@ -2,6 +2,8 @@
 //  LinkPriceParser.swift
 //  DuGo-iOS
 //
+//  Created by 김승원 on 1/10/26.
+//
 
 import CoreFoundation
 import Foundation

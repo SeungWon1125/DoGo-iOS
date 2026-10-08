@@ -1,3 +1,10 @@
+//
+//  ForceUpdateGate.swift
+//  DuGo-iOS
+//
+//  Created by 김승원 on 4/10/26.
+//
+
 import SwiftUI
 
 struct ForceUpdateGate<Content: View>: View {
@@ -21,13 +28,20 @@ struct ForceUpdateGate<Content: View>: View {
     var body: some View {
         content
             .allowsHitTesting(!monitor.isUpdateRequired)
-            .alert("업데이트가 필요해요", isPresented: $monitor.isAlertPresented) {
+            .alert(monitor.alertTitle, isPresented: $monitor.isAlertPresented) {
+                if !monitor.isUpdateRequired {
+                    Button("나중에", role: .cancel) {
+                        monitor.dismissOptionalUpdate()
+                    }
+                }
+
                 Button("업데이트") {
+                    monitor.dismissOptionalUpdate()
                     openAppStore()
                 }
                 .tint(DuGoTheme.accent)
             } message: {
-                Text("두고를 계속 사용하려면 최신 버전으로 업데이트해 주세요")
+                Text(monitor.alertMessage)
             }
             .task {
                 await monitor.checkForUpdate()
