@@ -15,6 +15,7 @@ struct SettingsView: View {
     @ObservedObject private var viewModel: HomeViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var notificationAuthorizationStatus: UNAuthorizationStatus?
+    @State private var isShowingOnboarding = false
     private let reminders: ReminderManager
 
     // MARK: - Initializer
@@ -60,6 +61,9 @@ struct SettingsView: View {
                 await refreshNotificationAuthorizationStatus()
             }
         }
+        .fullScreenCover(isPresented: $isShowingOnboarding) {
+            onboardingReplay
+        }
     }
 
     // MARK: - Subviews
@@ -98,29 +102,56 @@ struct SettingsView: View {
     private var helpSection: some View {
         settingsSection(title: "도움말") {
             VStack(spacing: 0) {
-                settingsRow(
-                    title: "두고 사용 방법",
-                    systemImage: "book.closed",
-                    showsChevron: true
-                )
+                NavigationLink {
+                    ShareHelpView()
+                } label: {
+                    settingsRow(
+                        title: "공유하기로 마음 담기",
+                        systemImage: "square.and.arrow.up",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
 
                 sectionDivider
 
-                settingsRow(
-                    title: "공유하기로 마음 담기",
-                    systemImage: "square.and.arrow.up",
-                    showsChevron: true
-                )
-
-                sectionDivider
-
-                settingsRow(
-                    title: "온보딩 다시 보기",
-                    systemImage: "sparkles",
-                    showsChevron: true
-                )
+                Button {
+                    isShowingOnboarding = true
+                } label: {
+                    settingsRow(
+                        title: "온보딩 다시 보기",
+                        systemImage: "sparkles",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
+    }
+
+    private var onboardingReplay: some View {
+        ZStack(alignment: .topTrailing) {
+            OnboardingView(
+                completionTitle: "설정으로 돌아가기"
+            ) {
+                isShowingOnboarding = false
+            }
+
+            Button {
+                isShowingOnboarding = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(DuGoTheme.ink)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.glass)
+            .accessibilityLabel("온보딩 닫기")
+            .padding(.top, 12)
+            .padding(.trailing, 16)
+        }
+        .environment(\.colorScheme, .light)
+        .preferredColorScheme(.light)
     }
 
     private var appInformationSection: some View {
