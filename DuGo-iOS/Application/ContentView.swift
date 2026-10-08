@@ -90,6 +90,7 @@ struct ContentView: View {
             Tab("홈", image: "homeIcon", value: AppTab.home) {
                 HomeView(
                     viewModel: viewModel,
+                    reminders: reminders,
                     onAddTapped: presentEditor,
                     scrollToTopRequest: homeScrollToTopRequest
                 )

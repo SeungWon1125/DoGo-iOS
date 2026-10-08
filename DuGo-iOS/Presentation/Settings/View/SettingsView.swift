@@ -6,16 +6,25 @@
 //
 
 import SwiftUI
+import UIKit
+import UserNotifications
 
 struct SettingsView: View {
     // MARK: - Properties
 
     @ObservedObject private var viewModel: HomeViewModel
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var notificationAuthorizationStatus: UNAuthorizationStatus?
+    private let reminders: ReminderManager
 
     // MARK: - Initializer
 
-    init(viewModel: HomeViewModel) {
+    init(
+        viewModel: HomeViewModel,
+        reminders: ReminderManager
+    ) {
         self.viewModel = viewModel
+        self.reminders = reminders
     }
 
     // MARK: - Body
@@ -42,6 +51,15 @@ struct SettingsView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarVisibility(.visible, for: .navigationBar)
         .dugoScreen()
+        .task {
+            await refreshNotificationAuthorizationStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await refreshNotificationAuthorizationStatus()
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -63,11 +81,17 @@ struct SettingsView: View {
 
     private var permissionSection: some View {
         settingsSection(title: "권한") {
-            settingsRow(
-                title: "알림 설정",
-                systemImage: "bell",
-                showsChevron: true
-            )
+            Button {
+                manageNotificationPermission()
+            } label: {
+                settingsRow(
+                    title: "알림 설정",
+                    systemImage: "bell",
+                    trailingText: notificationPermissionStatusText,
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -196,5 +220,47 @@ struct SettingsView: View {
         Bundle.main.object(
             forInfoDictionaryKey: "CFBundleShortVersionString"
         ) as? String ?? "-"
+    }
+
+    private var notificationPermissionStatusText: String {
+        switch notificationAuthorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            "허용됨"
+        case .denied:
+            "꺼짐"
+        case .notDetermined:
+            "설정하기"
+        case nil:
+            "확인 중"
+        @unknown default:
+            "확인 필요"
+        }
+    }
+
+    // MARK: - Methods
+
+    private func manageNotificationPermission() {
+        Task {
+            let status = await reminders.authorizationStatus()
+
+            if status == .notDetermined {
+                await reminders.requestPermissionIfNeeded()
+                await viewModel.syncReminders()
+                await refreshNotificationAuthorizationStatus()
+            } else {
+                openNotificationSettings()
+            }
+        }
+    }
+
+    private func refreshNotificationAuthorizationStatus() async {
+        notificationAuthorizationStatus = await reminders.authorizationStatus()
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else {
+            return
+        }
+        UIApplication.shared.open(url)
     }
 }
