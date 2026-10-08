@@ -50,6 +50,26 @@ final class ShareComposerModel: ObservableObject {
         return url
     }
 
+    private var sharedAutofilledFields: Set<AutofilledField> {
+        var fields: Set<AutofilledField> = []
+
+        if sharedContentImageData != nil {
+            fields.insert(.image)
+        }
+
+        if let sharedContentTitle,
+            !sharedContentTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            fields.insert(.title)
+        }
+
+        if sharedContentPrice != nil {
+            fields.insert(.price)
+        }
+
+        return fields
+    }
+
     // MARK: - Types
 
     enum AutofilledField: Hashable {
@@ -60,6 +80,7 @@ final class ShareComposerModel: ObservableObject {
 
     func preparePreview() {
         let usesSharedContent = link == sharedContentLink
+
         isLoadingPreview = false
         previewedLink = nil
         highlightedFields = []
@@ -85,6 +106,7 @@ final class ShareComposerModel: ObservableObject {
     func loadPreview(animate: Bool) async {
         guard validURL != nil else { return }
         let requestedLink = link
+        var newlyAutofilledFields: Set<AutofilledField> = []
         isLoadingPreview = true
 
         do {
@@ -93,8 +115,8 @@ final class ShareComposerModel: ObservableObject {
             if imageData == nil, let image = preview.imageData {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     imageData = image
-                    highlightedFields.insert(.image)
                 }
+                newlyAutofilledFields.insert(.image)
             }
             if animate {
                 try? await Task.sleep(for: .milliseconds(150))
@@ -104,8 +126,8 @@ final class ShareComposerModel: ObservableObject {
             if title.isEmpty, let previewTitle = preview.title {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     title = previewTitle
-                    highlightedFields.insert(.title)
                 }
+                newlyAutofilledFields.insert(.title)
             }
             if animate {
                 try? await Task.sleep(for: .milliseconds(150))
@@ -116,20 +138,20 @@ final class ShareComposerModel: ObservableObject {
                 withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
                     price = String(amount)
                     formatPrice()
-                    highlightedFields.insert(.price)
                 }
+                newlyAutofilledFields.insert(.price)
             }
         } catch {
         }
         guard !Task.isCancelled, link == requestedLink else { return }
-        isLoadingPreview = false
-        previewedLink = requestedLink
+        if requestedLink == sharedContentLink {
+            newlyAutofilledFields.formUnion(sharedAutofilledFields)
+        }
 
-        if !highlightedFields.isEmpty {
-            try? await Task.sleep(for: .milliseconds(500))
-            withAnimation(animate ? .easeOut(duration: 0.35) : nil) {
-                highlightedFields = []
-            }
+        withAnimation(animate ? .easeInOut(duration: 0.28) : nil) {
+            isLoadingPreview = false
+            previewedLink = requestedLink
+            highlightedFields = newlyAutofilledFields
         }
     }
 
@@ -437,11 +459,21 @@ struct ShareComposerView: View {
             .task(id: model.link) {
                 selectedPhoto = nil
                 photoSelectionMessage = nil
-                model.preparePreview()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) {
+                    model.preparePreview()
+                }
                 guard model.validURL != nil else { return }
                 try? await Task.sleep(for: .milliseconds(350))
                 guard !Task.isCancelled else { return }
                 await model.loadPreview(animate: !reduceMotion)
+            }
+            .task(id: model.highlightedFields) {
+                guard !model.highlightedFields.isEmpty else { return }
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) {
+                    model.highlightedFields = []
+                }
             }
             .task(id: selectedPhoto) {
                 guard let selectedPhoto else { return }

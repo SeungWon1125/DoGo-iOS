@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: ko-KR
+
+tone_instructions: >-
+  모든 PR 요약, 워크스루, 인라인 리뷰 코멘트와 대화 답변을 자연스럽고 간결한 한국어로 작성하세요.
+  코드의 타입명, 함수명, API명과 오류 메시지는 원문을 유지하세요.
+  문제를 지적할 때는 영향과 수정 방법을 함께 설명하고, 확인 가능한 버그와 위험을 우선하세요.
