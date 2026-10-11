@@ -30,6 +30,9 @@ struct SettingsView: View {
     }
 
     private enum SettingsURL {
+        static let shareHelp = URL(
+            string: "https://hail-anger-c0a.notion.site/3f6d2ca4eb7c8061ba15f28fa6c86853"
+        )!
         static let privacyPolicy = URL(
             string: "https://hail-anger-c0a.notion.site/3eed2ca4eb7c8052a25cefcbbb9cf116?pvs=74"
         )!
@@ -135,7 +138,10 @@ struct SettingsView: View {
         settingsSection(title: "도움말") {
             VStack(spacing: 0) {
                 NavigationLink {
-                    ShareHelpView()
+                    WebDocumentView(
+                        title: "공유하기로 마음 담기",
+                        url: SettingsURL.shareHelp
+                    )
                 } label: {
                     settingsRow(
                         title: "공유하기로 마음 담기",
