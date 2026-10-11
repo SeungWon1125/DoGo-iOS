@@ -15,7 +15,8 @@ struct SettingsView: View {
     private enum UpdateCheckAlert: Identifiable {
         case latest
         case unavailable
-        case update(title: String, message: String, url: URL)
+        case requiredUpdate(title: String, message: String, url: URL)
+        case optionalUpdate(title: String, message: String, url: URL)
 
         var id: String {
             switch self {
@@ -23,8 +24,10 @@ struct SettingsView: View {
                 "latest"
             case .unavailable:
                 "unavailable"
-            case .update:
-                "update"
+            case .requiredUpdate:
+                "requiredUpdate"
+            case .optionalUpdate:
+                "optionalUpdate"
             }
         }
     }
@@ -329,7 +332,15 @@ struct SettingsView: View {
                 message: Text("잠시 후 다시 시도해 주세요"),
                 dismissButton: .default(Text("확인"))
             )
-        case let .update(title, message, url):
+        case let .requiredUpdate(title, message, url):
+            Alert(
+                title: Text(title),
+                message: Text(message),
+                dismissButton: .default(Text("업데이트")) {
+                    openURL(url)
+                }
+            )
+        case let .optionalUpdate(title, message, url):
             Alert(
                 title: Text(title),
                 message: Text(message),
@@ -366,11 +377,19 @@ struct SettingsView: View {
                 return
             }
 
-            updateCheckAlert = .update(
-                title: versionMonitor.alertTitle,
-                message: versionMonitor.alertMessage,
-                url: url
-            )
+            if versionMonitor.isUpdateRequired {
+                updateCheckAlert = .requiredUpdate(
+                    title: versionMonitor.alertTitle,
+                    message: versionMonitor.alertMessage,
+                    url: url
+                )
+            } else {
+                updateCheckAlert = .optionalUpdate(
+                    title: versionMonitor.alertTitle,
+                    message: versionMonitor.alertMessage,
+                    url: url
+                )
+            }
         }
     }
 
