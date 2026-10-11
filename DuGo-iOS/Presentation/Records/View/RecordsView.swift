@@ -1,0 +1,496 @@
+//
+//  RecordsView.swift
+//  DuGo-iOS
+//
+//  Created by 김승원 on 19/9/26.
+//
+
+import SwiftData
+import SwiftUI
+
+struct RecordsView: View {
+    // MARK: - Types
+
+    private struct DecisionCount: Identifiable {
+        let decision: WishDecision
+        let count: Int
+
+        var id: WishDecision { decision }
+    }
+
+    // MARK: - Properties
+
+    @ObservedObject private var viewModel: HomeViewModel
+    private let scrollToTopRequest: Int
+    @State private var search = ""
+    @State private var filter: WishDecision?
+    @State private var selectedMonth: Date?
+    @State private var isSearchPresented = false
+    @FocusState private var isSearchFieldFocused: Bool
+
+    // MARK: - Initializer
+
+    init(viewModel: HomeViewModel, scrollToTopRequest: Int = 0) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.scrollToTopRequest = scrollToTopRequest
+    }
+
+    // MARK: - Computed Properties
+
+    private var latestRecords: [DecisionRecord] {
+        Dictionary(grouping: viewModel.records, by: \.itemID)
+            .values
+            .compactMap { records in
+                records.max { $0.createdAt < $1.createdAt }
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var filteredRecords: [DecisionRecord] {
+        let text = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let records =
+            if let selectedMonth {
+                viewModel.records
+                    .filter {
+                        Calendar.current.isDate(
+                            $0.createdAt,
+                            equalTo: selectedMonth,
+                            toGranularity: .month
+                        )
+                    }
+                    .sorted { $0.createdAt > $1.createdAt }
+            } else {
+                latestRecords
+            }
+
+        return records.filter {
+            (filter == nil || $0.decision == filter)
+                && (text.isEmpty || $0.title.localizedCaseInsensitiveContains(text)
+                    || $0.note.localizedCaseInsensitiveContains(text))
+        }
+    }
+
+    private var availableMonths: [Date] {
+        let calendar = Calendar.current
+        return Array(
+            Set(
+                viewModel.records.compactMap { record -> Date? in
+                    let components = calendar.dateComponents(
+                        [.year, .month],
+                        from: record.createdAt
+                    )
+                    return calendar.date(from: components)
+                }
+            )
+        )
+        .sorted(by: >)
+    }
+
+    private var summaryMonth: Date {
+        selectedMonth ?? .now
+    }
+
+    private var monthlyDecisionCounts: [DecisionCount] {
+        let calendar = Calendar.current
+        let records = viewModel.records.filter {
+            calendar.isDate($0.createdAt, equalTo: summaryMonth, toGranularity: .month)
+        }
+
+        return WishDecision.allCases.map { decision in
+            DecisionCount(
+                decision: decision,
+                count: records.count { $0.decision == decision }
+            )
+        }
+    }
+
+    private var activeMonthlyDecisionCounts: [DecisionCount] {
+        monthlyDecisionCounts.filter { $0.count > 0 }
+    }
+
+    private var monthlyDecisionTotal: Int {
+        monthlyDecisionCounts.reduce(0) { $0 + $1.count }
+    }
+
+    private var mostFrequentMonthlyDecision: WishDecision? {
+        guard let highestCount = activeMonthlyDecisionCounts.map(\.count).max() else {
+            return nil
+        }
+
+        let mostFrequent = activeMonthlyDecisionCounts.filter { $0.count == highestCount }
+        return mostFrequent.count == 1 ? mostFrequent.first?.decision : nil
+    }
+
+    @ViewBuilder
+    private var monthlySummaryTitle: some View {
+        let month = Calendar.current.component(.month, from: summaryMonth)
+
+        if let decision = mostFrequentMonthlyDecision {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    monthlySummaryText("\(month)월에는")
+                    decisionTag(decision)
+                    monthlySummaryText("를 가장 많이 선택했어요")
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        monthlySummaryText("\(month)월에는")
+                        decisionTag(decision)
+                        monthlySummaryText("를")
+                    }
+
+                    monthlySummaryText("가장 많이 선택했어요")
+                }
+            }
+        } else if monthlyDecisionTotal == 0 {
+            Text("\(month)월에는 아직 선택이 없어요")
+                .applyDuGoFont(.title16Medium)
+                .foregroundStyle(DuGoTheme.ink)
+        } else {
+            Text("\(month)월에는 \(monthlyDecisionTotal)번 마음을 정리했어요")
+                .applyDuGoFont(.title16Medium)
+                .foregroundStyle(DuGoTheme.ink)
+        }
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+
+                if isSearchPresented {
+                    searchField
+                        .transition(.opacity)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+
+            recordsList
+        }
+        .dismissKeyboardOnBackgroundTap()
+        .dugoScreen()
+        .dugoErrorToast(message: $viewModel.errorMessage)
+    }
+
+    // MARK: - Subviews
+
+    private var header: some View {
+        HStack {
+            Text("결정 기록")
+                .applyDuGoFont(.display32SemiBold)
+                .foregroundStyle(DuGoTheme.ink)
+
+            Spacer()
+
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    searchButton
+
+                    HStack(spacing: 12) {
+                        monthFilterMenu
+
+                        filterMenu
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .glassEffect(.regular.interactive(), in: Capsule())
+                }
+            }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(DuGoTheme.secondary)
+
+            TextField("물건이나 결정 이유 검색", text: $search)
+                .font(DuGoFont.body14Regular.font)
+                .foregroundStyle(DuGoTheme.ink)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isSearchFieldFocused)
+
+            if !search.isEmpty {
+                Button {
+                    search = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(DuGoTheme.secondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 48)
+        .background {
+            Capsule()
+                .fill(DuGoTheme.surface)
+                .dugoShadow(.subtle)
+        }
+    }
+
+    private var searchButton: some View {
+        Button {
+            if isSearchPresented {
+                search = ""
+                isSearchFieldFocused = false
+                withAnimation(.easeOut(duration: 0.18)) {
+                    isSearchPresented = false
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    isSearchPresented = true
+                }
+                isSearchFieldFocused = true
+            }
+        } label: {
+            Image(systemName: isSearchPresented ? "xmark" : "magnifyingglass")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(DuGoTheme.ink)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.glass)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("기록 종류", selection: $filter) {
+                Text("전체")
+                    .tag(nil as WishDecision?)
+
+                ForEach(WishDecision.allCases) { decision in
+                    Text(decision.rawValue).tag(Optional(decision))
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(filter == nil ? DuGoTheme.ink : DuGoTheme.accent)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("결정 종류 필터")
+    }
+
+    private var monthFilterMenu: some View {
+        Menu {
+            Picker("기록 월", selection: $selectedMonth) {
+                Text("전체")
+                    .tag(nil as Date?)
+
+                ForEach(availableMonths, id: \.self) { month in
+                    Text(monthFilterTitle(month))
+                        .tag(Optional(month))
+                }
+            }
+        } label: {
+            Image(systemName: selectedMonth == nil ? "calendar" : "calendar.badge.checkmark")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(selectedMonth == nil ? DuGoTheme.ink : DuGoTheme.accent)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("월별 기록 필터")
+    }
+
+    private var recordsList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    if !viewModel.records.isEmpty {
+                        monthlySummary
+                    }
+
+                    if filteredRecords.isEmpty {
+                        emptyState
+                            .frame(maxWidth: .infinity, minHeight: 260)
+                    } else {
+                        ForEach(filteredRecords) { record in
+                            if let item = viewModel.item(id: record.itemID) {
+                                NavigationLink {
+                                    WishDetailView(item: item, viewModel: viewModel)
+                                } label: {
+                                    recordCard(record, item: item)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                recordCard(record, item: nil)
+                            }
+                        }
+                    }
+                }
+                .id("records-scroll-top")
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
+            }
+            .onChange(of: scrollToTopRequest) { _, _ in
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo("records-scroll-top", anchor: .top)
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .refreshable {
+            search = ""
+            filter = nil
+            selectedMonth = nil
+            isSearchFieldFocused = false
+            viewModel.resetFilters()
+            await viewModel.refresh()
+        }
+    }
+
+    private var monthlySummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                monthlySummaryTitle
+
+                Spacer()
+            }
+            .padding(.bottom, 10)
+
+            monthlyDecisionGraph
+
+            if !activeMonthlyDecisionCounts.isEmpty {
+                HStack(spacing: 12) {
+                    ForEach(activeMonthlyDecisionCounts) { summary in
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(decisionColor(for: summary.decision))
+                                .frame(width: 7, height: 7)
+
+                            Text("\(summary.decision.rawValue) \(summary.count)")
+                                .applyDuGoFont(.caption12Regular)
+                                .foregroundStyle(DuGoTheme.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dugoRoundedSurface(cornerRadius: 18)
+    }
+
+    private var monthlyDecisionGraph: some View {
+        GeometryReader { geometry in
+            if monthlyDecisionTotal == 0 {
+                Capsule()
+                    .fill(DuGoTheme.border)
+            } else {
+                let spacing = CGFloat(Swift.max(activeMonthlyDecisionCounts.count - 1, 0)) * 3
+                let availableWidth = Swift.max(geometry.size.width - spacing, 0)
+
+                HStack(spacing: 3) {
+                    ForEach(activeMonthlyDecisionCounts) { summary in
+                        Capsule()
+                            .fill(decisionColor(for: summary.decision))
+                            .frame(
+                                width: availableWidth
+                                    * CGFloat(summary.count)
+                                    / CGFloat(monthlyDecisionTotal)
+                            )
+                    }
+                }
+            }
+        }
+        .frame(height: 10)
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .center, spacing: 8) {
+            Text(viewModel.records.isEmpty ? "아직은 비어 있어요" : "찾는 기록이 없어요")
+                .applyDuGoFont(.title18SemiBold)
+                .foregroundStyle(DuGoTheme.ink)
+                .frame(maxWidth: .infinity)
+
+            Text(
+                viewModel.records.isEmpty
+                    ? "마음을 결정하면 여기에 기록이 쌓여요"
+                    : "검색어나 필터를 바꿔 다시 찾아보세요"
+            )
+            .applyDuGoFont(.caption12Regular)
+            .foregroundStyle(DuGoTheme.secondary)
+            .multilineTextAlignment(.center)
+        }
+    }
+
+    private func recordCard(_ record: DecisionRecord, item: WishItem?) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            recordImage(for: item)
+
+            VStack(alignment: .leading, spacing: 2) {
+                decisionTag(record.decision)
+
+                Text(record.title)
+                    .applyDuGoFont(.title16Medium)
+                    .foregroundStyle(DuGoTheme.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
+                Text(record.createdAt.dugoFormattedDate())
+                    .applyDuGoFont(.caption12Regular)
+                    .foregroundStyle(.duGoSecondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dugoRoundedSurface(cornerRadius: 18)
+        .contentShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func recordImage(for item: WishItem?) -> some View {
+        Group {
+            if let data = item?.imageData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                DuGoImagePlaceholder()
+            }
+        }
+        .frame(width: 90, height: 90)
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+
+    private func decisionColor(for decision: WishDecision) -> Color {
+        switch decision {
+        case .purchase: DuGoTheme.accent
+        case .wait: DuGoTheme.complement
+        case .release: DuGoTheme.accent.opacity(0.55)
+        case .restore: DuGoTheme.complement.opacity(0.55)
+        }
+    }
+
+    private func decisionTag(_ decision: WishDecision) -> some View {
+        DuGoDecisionTag(
+            decision: decision,
+            color: decisionColor(for: decision)
+        )
+    }
+
+    private func monthlySummaryText(_ text: String) -> some View {
+        Text(text)
+            .applyDuGoFont(.title16Medium)
+            .foregroundStyle(DuGoTheme.ink)
+    }
+
+    private func monthFilterTitle(_ month: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy년 M월"
+        return formatter.string(from: month)
+    }
+}
