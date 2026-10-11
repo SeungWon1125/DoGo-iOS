@@ -13,8 +13,8 @@ struct WishReminder {
     // MARK: - Properties
 
     let itemID: UUID
+    let title: String
     let date: Date
-    var identifier: String { "dugo.review.\(itemID.uuidString)" }
 }
 
 @MainActor
@@ -22,11 +22,14 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
     // MARK: - Properties
 
     @Published var openedItemID: UUID?
+    @Published var shouldOpenReviewList = false
     private(set) var scheduledIDs: Set<UUID> = []
     private(set) var notice: String?
     private var queue: Task<Void, Never>?
     private var center: UNUserNotificationCenter { .current() }
     private let notificationHour = 13
+    private let notificationIdentifierPrefix = "dugo.review."
+    private let groupedNotificationIdentifierPrefix = "dugo.review.group."
 
     // MARK: - Methods
 
@@ -60,24 +63,31 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
         let authorized = [.authorized, .provisional, .ephemeral].contains(
             settings.authorizationStatus
         )
-        let future =
-            reminders
-            .map { (reminder: $0, notificationDate: notificationDate(for: $0.date)) }
-            .filter { $0.notificationDate > .now }
-            .sorted { $0.notificationDate < $1.notificationDate }
+        let groups = groupedReminders(from: reminders)
+        let future = groups.filter { $0.date > .now }
         let selected = authorized ? Array(future.prefix(60)) : []
-        let allowed = Set(selected.map { $0.reminder.identifier })
+        let allowed = Set(selected.map(\.identifier))
         let pending = await center.pendingNotificationRequests()
         center.removePendingNotificationRequests(
             withIdentifiers: pending.map(\.identifier).filter {
-                $0.hasPrefix("dugo.review.") && !allowed.contains($0)
+                $0.hasPrefix(notificationIdentifierPrefix) && !allowed.contains($0)
             }
         )
-        let active = Set(reminders.map(\.identifier))
+        let active = Set(groups.map(\.identifier))
         let delivered = await center.deliveredNotifications()
         center.removeDeliveredNotifications(
-            withIdentifiers: delivered.map(\.request.identifier).filter {
-                $0.hasPrefix("dugo.review.") && !active.contains($0)
+            withIdentifiers: delivered.compactMap { notification in
+                let request = notification.request
+                guard request.identifier.hasPrefix(notificationIdentifierPrefix) else {
+                    return nil
+                }
+                guard active.contains(request.identifier),
+                    let group = groups.first(where: { $0.identifier == request.identifier }),
+                    reminderIDs(from: request.content) == Set(group.reminders.map(\.itemID))
+                else {
+                    return request.identifier
+                }
+                return nil
             }
         )
         notice = nil
@@ -86,24 +96,23 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
         } else if future.count > 60 {
             notice = "가까운 일정 60개까지 알림을 예약했어요 앱을 열 때 다음 일정을 갱신해요"
         }
-        for scheduledReminder in selected {
-            let reminder = scheduledReminder.reminder
+        for group in selected {
             let components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second],
-                from: scheduledReminder.notificationDate
+                from: group.date
             )
-            if let existing = pending.first(where: { $0.identifier == reminder.identifier }),
+            let content = notificationContent(for: group)
+            if let existing = pending.first(where: { $0.identifier == group.identifier }),
                 let trigger = existing.trigger as? UNCalendarNotificationTrigger,
-                trigger.dateComponents == components
+                trigger.dateComponents == components,
+                existing.content.title == content.title,
+                existing.content.body == content.body,
+                reminderIDs(from: existing.content) == Set(group.reminders.map(\.itemID))
             {
                 continue
             }
-            let content = UNMutableNotificationContent()
-            content.title = "잠시 담아둔 마음, 다시 살펴볼까요?"
-            content.body = "지금 결정하지 않아도 괜찮아요"
-            content.userInfo = ["wishID": reminder.itemID.uuidString]
             let request = UNNotificationRequest(
-                identifier: reminder.identifier,
+                identifier: group.identifier,
                 content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             )
@@ -115,11 +124,73 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
         }
         let actual = await center.pendingNotificationRequests()
         scheduledIDs = Set(
-            actual.compactMap { request in
-                guard request.identifier.hasPrefix("dugo.review.") else { return nil }
-                return UUID(uuidString: String(request.identifier.dropFirst("dugo.review.".count)))
-            }
+            actual
+                .filter { $0.identifier.hasPrefix(notificationIdentifierPrefix) }
+                .flatMap { reminderIDs(from: $0.content) }
         )
+    }
+
+    private func groupedReminders(from reminders: [WishReminder]) -> [ReminderGroup] {
+        Dictionary(grouping: reminders) { notificationDate(for: $0.date) }
+            .map { date, reminders in
+                ReminderGroup(
+                    date: date,
+                    identifier: notificationIdentifier(for: date),
+                    reminders: reminders
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
+
+    private func notificationContent(for group: ReminderGroup) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        let representativeTitle = notificationTitle(
+            from: group.reminders.first?.title ?? "담아둔 상품"
+        )
+        let additionalCount = group.reminders.count - 1
+
+        if additionalCount == 0 {
+            content.title = "다시 볼 마음이 있어요"
+            content.body = "“\(representativeTitle)”을 다시 살펴볼 시간이에요"
+            content.userInfo = ["wishID": group.reminders[0].itemID.uuidString]
+        } else {
+            content.title = "오늘 다시 볼 마음이 \(group.reminders.count)개 있어요"
+            content.body = "\(representativeTitle) 외 \(additionalCount)개를 천천히 살펴보세요"
+            content.userInfo = [
+                "wishIDs": group.reminders.map { $0.itemID.uuidString }
+            ]
+        }
+        return content
+    }
+
+    private func notificationTitle(from rawTitle: String) -> String {
+        let normalizedTitle = rawTitle
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let title = normalizedTitle.isEmpty ? "담아둔 상품" : normalizedTitle
+        let maximumLength = 20
+
+        guard title.count > maximumLength else { return title }
+        return String(title.prefix(maximumLength)) + "…"
+    }
+
+    private func reminderIDs(from content: UNNotificationContent) -> Set<UUID> {
+        if let values = content.userInfo["wishIDs"] as? [String] {
+            return Set(values.compactMap(UUID.init(uuidString:)))
+        }
+        if let value = content.userInfo["wishID"] as? String,
+            let id = UUID(uuidString: value)
+        {
+            return [id]
+        }
+        return []
+    }
+
+    private func notificationIdentifier(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return groupedNotificationIdentifierPrefix
+            + "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
     }
 
     private func notificationDate(for reviewDate: Date) -> Date {
@@ -137,7 +208,12 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let text = response.notification.request.content.userInfo["wishID"] as? String,
+        let userInfo = response.notification.request.content.userInfo
+        if let values = userInfo["wishIDs"] as? [String], values.count > 1 {
+            await MainActor.run { self.shouldOpenReviewList = true }
+            return
+        }
+        guard let text = userInfo["wishID"] as? String,
             let id = UUID(uuidString: text)
         else { return }
         await MainActor.run { self.openedItemID = id }
@@ -149,4 +225,10 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
     ) async -> UNNotificationPresentationOptions {
         [.banner, .list]
     }
+}
+
+private struct ReminderGroup {
+    let date: Date
+    let identifier: String
+    let reminders: [WishReminder]
 }

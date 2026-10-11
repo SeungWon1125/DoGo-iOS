@@ -111,7 +111,7 @@ final class HomeViewModel: ObservableObject {
     func syncReminders() async {
         let requests = keptItems.compactMap { item -> WishReminder? in
             guard item.wantsReminder, let date = item.reviewAt else { return nil }
-            return WishReminder(itemID: item.id, date: date)
+            return WishReminder(itemID: item.id, title: item.title, date: date)
         }
         await reminders.synchronize(requests)
         scheduledIDs = reminders.scheduledIDs
