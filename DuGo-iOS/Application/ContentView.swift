@@ -60,6 +60,10 @@ struct ContentView: View {
         .onChange(of: reminders.openedItemID) { _, _ in
             openNotification()
         }
+        .onChange(of: reminders.shouldOpenReviewList) { _, shouldOpen in
+            guard shouldOpen else { return }
+            openReviewList()
+        }
         .sheet(isPresented: $isPresentingEditor) {
             NavigationStack {
                 WishEditorView(viewModel: viewModel, onCancel: { isPresentingEditor = false }) {
@@ -157,10 +161,20 @@ struct ContentView: View {
     }
 
     private func openNotification() {
+        if reminders.shouldOpenReviewList {
+            openReviewList()
+            return
+        }
         guard let id = reminders.openedItemID else { return }
 
         selectedTab = .home
         notificationItem = viewModel.item(id: id)
         reminders.openedItemID = nil
+    }
+
+    private func openReviewList() {
+        selectedTab = .home
+        notificationItem = nil
+        reminders.shouldOpenReviewList = false
     }
 }
