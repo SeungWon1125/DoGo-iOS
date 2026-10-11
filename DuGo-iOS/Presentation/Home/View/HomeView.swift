@@ -12,6 +12,7 @@ struct HomeView: View {
     // MARK: - Properties
 
     @ObservedObject private var viewModel: HomeViewModel
+    private let reminders: ReminderManager
     private let onAddTapped: () -> Void
     private let scrollToTopRequest: Int
     @State private var openingMessage: String
@@ -20,10 +21,12 @@ struct HomeView: View {
 
     init(
         viewModel: HomeViewModel,
+        reminders: ReminderManager,
         onAddTapped: @escaping () -> Void,
         scrollToTopRequest: Int = 0
     ) {
         self.viewModel = viewModel
+        self.reminders = reminders
         self.onAddTapped = onAddTapped
         self.scrollToTopRequest = scrollToTopRequest
         _openingMessage = State(initialValue: DuGoGreeting.randomOpeningMessage)
@@ -85,15 +88,18 @@ struct HomeView: View {
             Spacer()
 
             NavigationLink {
-                CategoryManagementView(viewModel: viewModel)
+                SettingsView(
+                    viewModel: viewModel,
+                    reminders: reminders
+                )
             } label: {
-                Image(systemName: "tag")
+                Image(systemName: "gearshape")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(DuGoTheme.ink)
                     .frame(width: 30, height: 30)
             }
             .buttonStyle(.glass)
-            .accessibilityLabel("카테고리 관리")
+            .accessibilityLabel("설정")
         }
         .foregroundStyle(DuGoTheme.ink)
     }

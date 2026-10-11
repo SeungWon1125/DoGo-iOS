@@ -112,6 +112,10 @@ final class AppVersionMonitor: ObservableObject {
         updateLevel == .required
     }
 
+    var isUpdateAvailable: Bool {
+        updateLevel != .none
+    }
+
     var alertTitle: String {
         isUpdateRequired ? "업데이트가 필요해요" : "새로운 버전이 있어요"
     }
@@ -132,14 +136,15 @@ final class AppVersionMonitor: ObservableObject {
 
     // MARK: - Methods
 
-    func checkForUpdate() async {
-        guard !isChecking else { return }
-        guard let installedVersion = Self.installedVersion else { return }
+    @discardableResult
+    func checkForUpdate(ignoringDismissedVersion: Bool = false) async -> Bool {
+        guard !isChecking else { return false }
+        guard let installedVersion = Self.installedVersion else { return false }
 
         isChecking = true
         defer { isChecking = false }
 
-        guard let policy = await fetchRemotePolicy() else { return }
+        guard let policy = await fetchRemotePolicy() else { return false }
 
         if let remoteURL = policy.appStoreURL {
             cacheStoreURL(remoteURL)
@@ -147,7 +152,12 @@ final class AppVersionMonitor: ObservableObject {
             await refreshStoreURL()
         }
 
-        apply(policy, to: installedVersion)
+        apply(
+            policy,
+            to: installedVersion,
+            ignoringDismissedVersion: ignoringDismissedVersion
+        )
+        return true
     }
 
     func presentAlertIfNeeded() {
@@ -254,7 +264,11 @@ final class AppVersionMonitor: ObservableObject {
         }
     }
 
-    private func apply(_ policy: UpdatePolicy, to installedVersion: AppVersion) {
+    private func apply(
+        _ policy: UpdatePolicy,
+        to installedVersion: AppVersion,
+        ignoringDismissedVersion: Bool
+    ) {
         latestVersion = policy.latestVersion.rawValue
 
         if installedVersion < policy.minimumVersion {
@@ -275,7 +289,10 @@ final class AppVersionMonitor: ObservableObject {
 
         if
             installedVersion < policy.latestVersion,
-            dismissedVersion != policy.latestVersion.rawValue,
+            (
+                ignoringDismissedVersion ||
+                dismissedVersion != policy.latestVersion.rawValue
+            ),
             appStoreURL != nil
         {
             updateLevel = .optional

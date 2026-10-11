@@ -77,6 +77,7 @@ struct OnboardingView: View {
     @State private var selectedPage = 0
     @State private var activePage: Int?
 
+    private let completionTitle: String
     private let onComplete: () -> Void
 
     private let pages = [
@@ -108,7 +109,11 @@ struct OnboardingView: View {
 
     // MARK: - Initializer
 
-    init(onComplete: @escaping () -> Void) {
+    init(
+        completionTitle: String = "두고 시작하기",
+        onComplete: @escaping () -> Void
+    ) {
+        self.completionTitle = completionTitle
         self.onComplete = onComplete
     }
 
@@ -571,7 +576,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var bottomAction: some View {
         if selectedPage == pages.count - 1 {
-            DuGoPrimaryButton(title: "두고 시작하기", action: onComplete)
+            DuGoPrimaryButton(title: completionTitle, action: onComplete)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 12)
         } else {

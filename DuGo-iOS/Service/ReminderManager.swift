@@ -39,6 +39,10 @@ final class ReminderManager: NSObject, ObservableObject, UNUserNotificationCente
         }
     }
 
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await center.notificationSettings().authorizationStatus
+    }
+
     func synchronize(_ reminders: [WishReminder]) async {
         let previous = queue
         let task = Task { @MainActor in
